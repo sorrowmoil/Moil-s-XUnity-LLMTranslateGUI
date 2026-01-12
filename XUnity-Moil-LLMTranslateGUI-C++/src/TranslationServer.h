@@ -69,6 +69,11 @@ signals:
     // 用于发送日志消息到 UI 主线程的信号 (跨线程通信)
     void logMessage(QString msg);
 
+    // Signal to update token usage in the UI
+    // 用于在 UI 中更新 Token 使用情况的信号
+    void tokenUsageReceived(int prompt, int completion);
+
+
 private:
     // Main loop for the httplib server (runs in a separate thread)
     // httplib 服务器的主循环 (在单独的 std::thread 中运行，不阻塞 Qt UI)

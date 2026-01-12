@@ -329,6 +329,16 @@ QString TranslationServer::performSingleTranslationAttempt(const QString& text, 
         QByteArray responseBytes = reply->readAll();
         try {
             json response = json::parse(responseBytes.toStdString());
+
+            
+            // Check for "usage" field to emit token usage / 检查 "usage" 字段以发送 Token 使用情况
+            if (response.contains("usage")) {
+                int p = response["usage"].value("prompt_tokens", 0);
+                int c = response["usage"].value("completion_tokens", 0);
+                if (p > 0 || c > 0) emit tokenUsageReceived(p, c);
+
+            }
+
             // Check for "choices" field and if not empty / 检查是否存在 "choices" 字段且不为空
             if (response.contains("choices") && !response["choices"].empty()) {
                 std::string content = response["choices"][0]["message"]["content"];
