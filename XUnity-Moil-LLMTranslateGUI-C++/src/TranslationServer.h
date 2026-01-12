@@ -77,7 +77,7 @@ private:
     // void runBatchProcessor(); // [Commented Out/已注释]
 
     // Core function: Sends request to AI API and parses response
-    // 核心函数：构建提示词、发送请求给 AI API 并解析返回结果
+    // 核心函数：构建提示词、发送请求给 AI API 并解析返回结果 (包含重试逻辑)
     QString performTranslation(const QString& text, const QString& clientIP);
     
     // void processBatch(std::vector<std::shared_ptr<PendingRequest>>& batch); // [Commented Out/已注释]
@@ -117,4 +117,16 @@ private:
     std::vector<QString> m_apiKeys;
     int m_currentKeyIndex = 0;
     std::mutex m_keyMutex;     // Protects key rotation / 保护密钥轮询索引
+
+    // Error Retry Messages
+    // 错误重试相关函数声明
+    
+    // Performs one attempt of translation without retry logic
+    // 执行单次翻译尝试，不包含重试循环
+    QString performSingleTranslationAttempt(const QString& text, const QString& clientIP);
+    
+    // Checks if the returned string is a valid translation (not an error message or empty)
+    // 检查返回的字符串是否为有效的翻译结果（非错误信息或空）
+    bool isValidTranslationResult(const QString& result);
+
 };
