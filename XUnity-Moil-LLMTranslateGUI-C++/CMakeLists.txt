@@ -68,6 +68,7 @@ add_executable(XUnityTranslatorCPP
     src/moil.ico
     src/GlossaryManager.h
     src/RegexManager.h
+    src/TokenManager.h src/TokenManager.cpp
     logo.rc
 )
 
