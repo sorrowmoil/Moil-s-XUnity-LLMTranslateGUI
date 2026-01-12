@@ -1,3 +1,8 @@
+/**
+ * MainWindow.cpp - Moil的XUnity大模型翻译GUI主窗口实现
+ * MainWindow.cpp - Main window implementation for Moil's XUnity LLM Translator GUI
+ */
+
 #include "MainWindow.h"
 #include "json.hpp" 
 #include <QVBoxLayout>
@@ -13,6 +18,7 @@
 #include <QStyleFactory>
 #include <QPixmap> // 用于截图 / Used for screenshots
 #include <QMenu>
+
 
 // ==========================================
 // 🌍 多语言字典定义 (UI 文本)
@@ -44,7 +50,8 @@ const char* STR_LANG_BTN[] = {"English", "中文"};
 const char* STR_GLOSSARY[] = {"术语表:", "Glossary:"}; 
 const char* STR_CHK_GLOSSARY[] = {"启用自进化 (实验性)", "Enable Self-Evolution (Exp)"};
 const char* STR_CLEAR_LOG[] = {"清空日志", "Clear Log"};
-
+const char* STR_TOKENS[] = {"消耗:", "Tokens:"};
+const char* TIP_TOKENS[] = {"本次运行总消耗 (输入+输出)", "Total Usage (Prompt + Completion)"};
 // ==========================================
 // 📝 多语言字典定义 (日志文本)
 // 📝 Multi-language Dictionary Definitions (Log Text)
@@ -82,23 +89,70 @@ const char* TIP_GLOSSARY[] = {
     "Select XUnity's _Substitutions.txt.\nLLM will reference and append to it."
 };
 
+/**
+ * 构造函数：初始化主窗口
+ * Constructor: Initialize the main window
+ */
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+    // 1. 基础变量初始化 (推荐使用初始化列表，但这里放在这里也行)
+    // 1. Basic variable initialization (preferably using initializer list, but here is okay)
     m_isClosing = false;
     m_isDarkTheme = true;
     m_currentLang = 0; 
-
     resize(650, 800); 
 
+    // ============================================================
+    // 第一阶段：创建核心对象 (The Logic Layer)
+    // Phase 1: Create Core Objects (The Logic Layer)
+    // ============================================================
+    // 必须先创建它们，因为后续的 connect 依赖它们
+    // They must be created first because subsequent connect statements depend on them
+    m_tokenManager = new TokenManager(this);
     server = new TranslationServer(this);
+
+    // ============================================================
+    // 第二阶段：构建 UI (The View Layer)
+    // Phase 2: Build UI (The View Layer)
+    // ============================================================
+    // ⚠️ 关键点：setupUi 会执行 new QLabel 等操作。
+    // ⚠️ Key Point: setupUi will execute new QLabel, etc.
+    // 在这行代码执行完之前，绝对不能调用 updateUIText 或访问 lblTokens。
+    // Before this line completes, do not call updateUIText or access lblTokens.
+    setupUi(); 
+
+    // ============================================================
+    // 第三阶段：连接信号槽 (The Controller Layer)
+    // Phase 3: Connect Signals and Slots (The Controller Layer)
+    // ============================================================
+    // 此时 Server(数据源) 和 lblTokens(显示目标) 都已经存在了，连接是绝对安全的。
+    // At this point, both Server (data source) and lblTokens (display target) exist, connection is absolutely safe.
+    
+    // 日志 / Logging
     connect(server, &TranslationServer::logMessage, this, &MainWindow::onLogMessage);
+    
+    // 数据流: Server -> TokenManager
+    // Data flow: Server -> TokenManager
+    connect(server, &TranslationServer::tokenUsageReceived, m_tokenManager, &TokenManager::addUsage);
+    
+    // 显示流: TokenManager -> UI
+    // Display flow: TokenManager -> UI
+    connect(m_tokenManager, &TokenManager::tokensUpdated, this, &MainWindow::updateTokenDisplay);
 
-    setupUi();       // 初始化界面布局 / Initialize UI layout
-    loadConfigToUi(); // 加载配置 / Load configuration
-    updateUIText();   // 设置初始语言文本 / Set initial language text
-    applyTheme(true); // 默认深色主题 / Default to dark theme
+    // ============================================================
+    // 第四阶段：初始化状态 (State Initialization)
+    // Phase 4: Initialize State
+    // ============================================================
+    // 此时所有指针都已分配内存，直接调用，不需要 if 检查。
+    // At this point, all pointers have allocated memory, call directly without if checks.
+    
+    loadConfigToUi(); // 加载配置到输入框 / Load config to input fields
+    updateUIText();   // 设置 Label 的文字 / Set label texts
+    applyTheme(true); // 设置颜色 / Set colors
 
-    // 设置窗口淡入动画
-    // Set window fade-in animation
+    // ============================================================
+    // 第五阶段：启动特效
+    // Phase 5: Startup Effects
+    // ============================================================
     setWindowOpacity(0.0);
     fadeAnim = new QPropertyAnimation(this, "windowOpacity");
     fadeAnim->setDuration(500);
@@ -107,12 +161,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     fadeAnim->start();
 }
 
+/**
+ * 析构函数：停止服务器
+ * Destructor: Stop the server
+ */
 MainWindow::~MainWindow() {
     server->stopServer();
 }
 
-// 窗口关闭事件处理
-// Window close event handling
+/**
+ * 窗口关闭事件处理：执行退出动画并保存配置
+ * Window close event handling: Execute exit animation and save config
+ */
 void MainWindow::closeEvent(QCloseEvent *event) {
     if (m_isClosing) {
         event->accept();
@@ -128,6 +188,10 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     fadeOutAndClose();
 }
 
+/**
+ * 淡出动画并关闭应用程序
+ * Fade out animation and close the application
+ */
 void MainWindow::fadeOutAndClose() {
     fadeAnim->setDirection(QAbstractAnimation::Backward);
     connect(fadeAnim, &QPropertyAnimation::finished, this, &QMainWindow::close); 
@@ -137,6 +201,7 @@ void MainWindow::fadeOutAndClose() {
 
 // ==========================================
 // ✨ 平滑切换核心逻辑 (Smooth Transition)
+// ✨ Smooth Transition Core Logic
 // ==========================================
 void MainWindow::smoothSwitch(std::function<void()> changeLogic) {
     // 1. 截图：捕获当前窗口的样子
@@ -171,6 +236,10 @@ void MainWindow::smoothSwitch(std::function<void()> changeLogic) {
     anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
+/**
+ * 切换界面语言
+ * Toggle the UI language
+ */
 void MainWindow::toggleLanguage() {
     // 使用平滑切换 / Use smooth switching
     smoothSwitch([this](){
@@ -183,6 +252,10 @@ void MainWindow::toggleLanguage() {
     });
 }
 
+/**
+ * 切换主题（亮色/暗色）
+ * Toggle theme (Light/Dark)
+ */
 void MainWindow::toggleTheme() {
     // 使用平滑切换 / Use smooth switching
     smoothSwitch([this](){
@@ -190,6 +263,10 @@ void MainWindow::toggleTheme() {
     });
 }
 
+/**
+ * 选择术语表文件
+ * Select glossary file
+ */
 void MainWindow::onSelectGlossary() {
     QString fileName = QFileDialog::getOpenFileName(this, "Select File", "", "Text Files (*.txt);;All Files (*.*)");
     if (!fileName.isEmpty()) {
@@ -197,14 +274,16 @@ void MainWindow::onSelectGlossary() {
     }
 }
 
+/**
+ * 更新所有UI控件的文本（根据当前语言）
+ * Update text of all UI controls (based on current language)
+ */
 void MainWindow::updateUIText() {
     int i = m_currentLang;
     setWindowTitle(STR_TITLE[i]);
     cfgGroup->setTitle(STR_API_CFG[i]);
     logGroup->setTitle(STR_LOG_AREA[i]);
     
-    // 更新所有标签文本
-    // Update all label texts
     lblApiAddr->setText(STR_API_ADDR[i]);
     lblApiKey->setText(STR_API_KEY[i]);
     lblModel->setText(STR_MODEL[i]);
@@ -228,8 +307,6 @@ void MainWindow::updateUIText() {
     exportBtn->setText(STR_EXPORT[i]);
     langBtn->setText(STR_LANG_BTN[i]);
     
-    // 更新工具提示
-    // Update tooltips
     portEdit->setToolTip(TIP_PORT[i]);
     lblPort->setToolTip(TIP_PORT[i]);
     threadSpin->setToolTip(TIP_THREAD[i]);
@@ -239,12 +316,23 @@ void MainWindow::updateUIText() {
     contextSpin->setToolTip(TIP_CTX[i]);
     lblCtx->setToolTip(TIP_CTX[i]);
     
-    lblGlossary->setToolTip(TIP_GLOSSARY[i]);
+lblGlossary->setToolTip(TIP_GLOSSARY[i]);
     chkGlossary->setToolTip(TIP_GLOSSARY[i]);
     glossaryPathEdit->setToolTip(TIP_GLOSSARY[i]);
     btnSelectGlossary->setToolTip(TIP_GLOSSARY[i]);
+
+    // ✅ 自信的代码：直接调用，无需判空
+    // ✅ Confident code: Call directly without null checks
+    // 因为根据构造函数的顺序，运行到这里时，lblTokens 必然活着
+    // Because according to the constructor order, lblTokens must be alive when running here
+    lblTokens->setText(QString("%1 %2").arg(STR_TOKENS[i]).arg(m_tokenManager->getTotal()));
+    lblTokens->setToolTip(TIP_TOKENS[i]);
 }
 
+/**
+ * 应用主题（深色/浅色）
+ * Apply theme (Dark/Light)
+ */
 void MainWindow::applyTheme(bool isDark) {
     // Use Fusion style for consistent cross-platform look
     // 使用 Fusion 风格以获得一致的跨平台外观
@@ -296,6 +384,10 @@ void MainWindow::applyTheme(bool isDark) {
     m_isDarkTheme = isDark;
 }
 
+/**
+ * 创建UI布局和控件
+ * Create UI layout and controls
+ */
 void MainWindow::setupUi() {
     QWidget *central = new QWidget(this);
     setCentralWidget(central);
@@ -303,14 +395,12 @@ void MainWindow::setupUi() {
     mainLayout->setSpacing(6); 
     mainLayout->setContentsMargins(12, 12, 12, 12);
 
-    // === Configuration Group (左上配置区) ===
+    // === Configuration Group ===
     cfgGroup = new QGroupBox(this); 
     QGridLayout *grid = new QGridLayout(cfgGroup);
-    grid->setColumnStretch(1, 1); // 让第二列（输入框）占据更多空间 / Let column 2 occupy more space
+    grid->setColumnStretch(1, 1);
     grid->setVerticalSpacing(8); 
 
-    // 辅助 lambda：快速创建右对齐标签
-    // Helper lambda: Quickly create right-aligned labels
     auto createLabel = [this](QLabel*& memberPtr) {
         memberPtr = new QLabel(this);
         memberPtr->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -341,36 +431,43 @@ void MainWindow::setupUi() {
     grid->addWidget(createLabel(lblModel), 2, 0);
     grid->addWidget(modelContainer, 2, 1);
 
-    // Row 3: Parameters (Port, Threads, Temp, Context) - Compact Layout
+     // === Row 3: Parameters (重点修改区域) ===
+    // === Row 3: Parameters (Key Modification Area) ===
     QWidget *paramContainer = new QWidget(this);
     QHBoxLayout *paramLayout = new QHBoxLayout(paramContainer);
     paramLayout->setContentsMargins(0, 0, 0, 0);
     
+    // 初始化各个控件 / Initialize each control
+    lblPort = new QLabel(this);
     portEdit = new QLineEdit(this);
     portEdit->setFixedWidth(50);
     portEdit->setAlignment(Qt::AlignCenter);
     
+    lblThread = new QLabel(this);
     threadSpin = new QSpinBox(this);
     threadSpin->setRange(1, 200);
     threadSpin->setFixedWidth(50);
     threadSpin->setAlignment(Qt::AlignCenter);
 
+    lblTemp = new QLabel(this);
     tempSpin = new QDoubleSpinBox(this);
     tempSpin->setRange(0, 2);
     tempSpin->setSingleStep(0.1);
     tempSpin->setFixedWidth(50);
     tempSpin->setAlignment(Qt::AlignCenter);
 
+    lblCtx = new QLabel(this);
     contextSpin = new QSpinBox(this);
     contextSpin->setRange(0, 20);
     contextSpin->setFixedWidth(50);
     contextSpin->setAlignment(Qt::AlignCenter);
 
-    lblPort = new QLabel(this);
-    lblThread = new QLabel(this);
-    lblTemp = new QLabel(this);
-    lblCtx = new QLabel(this);
+    // ⚠️ 关键：在这里创建 lblTokens
+    // ⚠️ Key: Create lblTokens here
+    lblTokens = new QLabel(this);
+    lblTokens->setStyleSheet("color: #DAA520; font-weight: bold;"); 
 
+    // 添加到布局 / Add to layout
     paramLayout->addWidget(lblPort);
     paramLayout->addWidget(portEdit);
     paramLayout->addSpacing(15);
@@ -382,14 +479,19 @@ void MainWindow::setupUi() {
     paramLayout->addSpacing(15);
     paramLayout->addWidget(lblCtx);
     paramLayout->addWidget(contextSpin);
-    paramLayout->addStretch(); 
+    
+    // 添加 Tokens 消耗器 / Add Tokens consumption display
+    paramLayout->addSpacing(15);
+    paramLayout->addWidget(lblTokens);
+
+    paramLayout->addStretch(); // 弹簧，保持左对齐 / Spring to keep left alignment
 
     grid->addWidget(paramContainer, 3, 0, 1, 2);
+
 
     // Row 4: System Prompt
     systemPromptEdit = new QTextEdit(this);
     systemPromptEdit->setMinimumHeight(100); 
-    
     lblSysPrompt = new QLabel(this);
     lblSysPrompt->setAlignment(Qt::AlignRight | Qt::AlignTop);
     grid->addWidget(lblSysPrompt, 4, 0);
@@ -400,40 +502,30 @@ void MainWindow::setupUi() {
     grid->addWidget(createLabel(lblPrePrompt), 5, 0);
     grid->addWidget(prePromptEdit, 5, 1);
 
-    // Row 6: Glossary Settings
+    // Row 6: Glossary
     QWidget *glossaryContainer = new QWidget(this);
     QHBoxLayout *glossaryLayout = new QHBoxLayout(glossaryContainer);
     glossaryLayout->setContentsMargins(0, 0, 0, 0);
-
     chkGlossary = new QCheckBox(this);
     glossaryPathEdit = new QLineEdit(this);
     glossaryPathEdit->setPlaceholderText("_Substitutions.txt Path");
     btnSelectGlossary = new QPushButton("...", this);
     btnSelectGlossary->setFixedWidth(30);
-    
     connect(btnSelectGlossary, &QPushButton::clicked, this, &MainWindow::onSelectGlossary);
-
     glossaryLayout->addWidget(chkGlossary);
     glossaryLayout->addWidget(glossaryPathEdit);
     glossaryLayout->addWidget(btnSelectGlossary);
-
     grid->addWidget(createLabel(lblGlossary), 6, 0);
     grid->addWidget(glossaryContainer, 6, 1);
-
+    
     mainLayout->addWidget(cfgGroup);
 
-    // === Button Row (底部按钮栏) ===
+    // Buttons
     QHBoxLayout *btnLayout = new QHBoxLayout();
-    
-    auto createBtn = [this](QPushButton*& btnPtr) {
-        btnPtr = new QPushButton(this);
-        btnPtr->setMinimumHeight(32);
-        return btnPtr;
-    };
-
+    auto createBtn = [this](QPushButton*& btnPtr) { btnPtr = new QPushButton(this); btnPtr->setMinimumHeight(32); return btnPtr; };
     btnLayout->addWidget(createBtn(startBtn));
     btnLayout->addWidget(createBtn(stopBtn));
-    stopBtn->setEnabled(false); // 初始时禁用停止按钮 / Disable Stop button initially
+    stopBtn->setEnabled(false);
     btnLayout->addWidget(createBtn(testBtn));
     btnLayout->addWidget(createBtn(loadBtn));
     btnLayout->addWidget(createBtn(saveBtn));
@@ -443,30 +535,21 @@ void MainWindow::setupUi() {
     
     connect(themeBtn, &QPushButton::clicked, this, &MainWindow::toggleTheme);
     connect(langBtn, &QPushButton::clicked, this, &MainWindow::toggleLanguage); 
-
     connect(startBtn, &QPushButton::clicked, this, &MainWindow::onStartClicked);
     connect(stopBtn, &QPushButton::clicked, this, &MainWindow::onStopClicked);
     connect(testBtn, &QPushButton::clicked, this, &MainWindow::onTestConfig);
     connect(loadBtn, &QPushButton::clicked, this, &MainWindow::onLoadConfig);
     connect(saveBtn, &QPushButton::clicked, this, &MainWindow::onSaveConfig);
     connect(exportBtn, &QPushButton::clicked, this, &MainWindow::onExportLog);
-    
     mainLayout->addLayout(btnLayout);
 
-    // === Log Area (日志区) ===
+    // Log Area
     logGroup = new QGroupBox(this);
     QVBoxLayout *logLayout = new QVBoxLayout(logGroup);
     logArea = new QTextEdit(this);
     logArea->setReadOnly(true);
-
-    // ==========================================
-    // ✨ 新增：右键菜单逻辑
-    // ✨ New: Context Menu Logic
-    // ==========================================
     logArea->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(logArea, &QTextEdit::customContextMenuRequested, this, &MainWindow::onLogContextMenu);
-
-
     logLayout->addWidget(logArea);
     mainLayout->addWidget(logGroup);
 }
@@ -502,6 +585,10 @@ void MainWindow::onLogContextMenu(const QPoint &pos) {
     delete menu;
 }
 
+/**
+ * 从配置管理器加载配置到UI控件
+ * Load configuration from ConfigManager to UI controls
+ */
 void MainWindow::loadConfigToUi() {
     AppConfig cfg = ConfigManager::loadConfig();
     apiAddressEdit->setText(cfg.api_address);
@@ -520,6 +607,10 @@ void MainWindow::loadConfigToUi() {
     m_currentLang = cfg.language; 
 }
 
+/**
+ * 从UI控件获取当前配置
+ * Get current configuration from UI controls
+ */
 AppConfig MainWindow::getUiConfig() {
     AppConfig cfg;
     cfg.api_address = apiAddressEdit->text();
@@ -539,6 +630,10 @@ AppConfig MainWindow::getUiConfig() {
     return cfg;
 }
 
+/**
+ * 根据服务器运行状态切换控件可用性
+ * Toggle control availability based on server running state
+ */
 void MainWindow::toggleControls(bool running) {
     startBtn->setEnabled(!running);
     stopBtn->setEnabled(running);
@@ -552,6 +647,10 @@ void MainWindow::toggleControls(bool running) {
     btnSelectGlossary->setEnabled(!running);
 }
 
+/**
+ * 启动翻译服务器
+ * Start the translation server
+ */
 void MainWindow::onStartClicked() {
     AppConfig cfg = getUiConfig();
     server->updateConfig(cfg);
@@ -559,15 +658,27 @@ void MainWindow::onStartClicked() {
     toggleControls(true);
 }
 
+/**
+ * 停止翻译服务器
+ * Stop the translation server
+ */
 void MainWindow::onStopClicked() {
     server->stopServer();
     toggleControls(false);
 }
 
+/**
+ * 处理日志消息并显示在日志区域
+ * Process log message and display in log area
+ */
 void MainWindow::onLogMessage(QString msg) {
     logArea->append(msg);
 }
 
+/**
+ * 保存当前配置到文件
+ * Save current configuration to file
+ */
 void MainWindow::onSaveConfig() {
     QString fileName = QFileDialog::getSaveFileName(this, STR_SAVE[m_currentLang], "config.ini", "Config Files (*.ini)");
     if (!fileName.isEmpty()) {
@@ -576,6 +687,10 @@ void MainWindow::onSaveConfig() {
     }
 }
 
+/**
+ * 从文件加载配置并更新UI
+ * Load configuration from file and update UI
+ */
 void MainWindow::onLoadConfig() {
     QString fileName = QFileDialog::getOpenFileName(this, STR_LOAD[m_currentLang], "", "Config Files (*.ini)");
     if (!fileName.isEmpty()) {
@@ -598,6 +713,10 @@ void MainWindow::onLoadConfig() {
     }
 }
 
+/**
+ * 导出日志到文件
+ * Export log to file
+ */
 void MainWindow::onExportLog() {
     QString fileName = "run_log.txt";
     QFile file(fileName);
@@ -609,8 +728,10 @@ void MainWindow::onExportLog() {
     }
 }
 
-// 获取模型列表 (Network Request)
-// Fetch Model List (Network Request)
+/**
+ * 获取可用的模型列表 (网络请求)
+ * Fetch available model list (Network Request)
+ */
 void MainWindow::onFetchModels() {
     QString url = apiAddressEdit->text();
     if(url.endsWith("/")) url.chop(1); // 移除末尾斜杠 / Remove trailing slash
@@ -646,9 +767,12 @@ void MainWindow::onFetchModels() {
     });
 }
 
-// 测试 API 连接 (Network Request)
-// Test API Connection (Network Request)
+/**
+ * 测试所有API连接 (网络请求)
+ * Test all API connections (Network Request)
+ */
 void MainWindow::onTestConfig() {
+    
     logArea->append(LOG_TEST_START[m_currentLang]);
     
     // 支持逗号分隔的多个 Key / Support multiple keys separated by comma
@@ -693,4 +817,13 @@ void MainWindow::onTestConfig() {
             mgr->deleteLater();
         });
     }
+}
+
+/**
+ * 更新令牌消耗显示
+ * Update token consumption display
+ */
+void MainWindow::updateTokenDisplay(long long total, long long prompt, long long completion) {
+    lblTokens->setText(QString("%1 %2").arg(STR_TOKENS[m_currentLang]).arg(total));
+    lblTokens->setToolTip(QString("Input: %1\nOutput: %2").arg(prompt).arg(completion));
 }

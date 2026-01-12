@@ -13,6 +13,7 @@
 #include <functional>             // <--- 新增：用于回调函数 / New: For callback functions
 #include "TranslationServer.h"
 #include <QMenu>
+#include "TokenManager.h"
 
 // 主窗口类，负责 UI 展示和用户交互
 // Main Window class, responsible for UI presentation and user interaction
@@ -37,7 +38,9 @@ private slots:
     void onSaveConfig();         // 手动保存配置 / Manually save config
     void onLoadConfig();         // 手动加载配置 / Manually load config
     void onExportLog();          // 导出日志到文件 / Export logs to file
-    
+    void updateTokenDisplay(long long total, long long prompt, long long completion); // 更新 Token 显示 / Update token display
+
+
     // 日志接收槽函数 / Log reception slot
     void onLogMessage(QString msg);
     
@@ -115,4 +118,6 @@ private:
     // 核心逻辑对象 / Core Logic Objects
     TranslationServer *server;
     QPropertyAnimation *fadeAnim; // 窗口透明度动画 / Window opacity animation
+    TokenManager *m_tokenManager; 
+    QLabel *lblTokens;            // 显示 Token 使用情况的标签 / Label to display token usage
 };
