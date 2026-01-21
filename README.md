@@ -110,6 +110,7 @@ src/
 ├── RegexManager.cpp / .h         # 正则预处理/后处理
 ├── translate.ico                  # 应用图标
 ├── TranslationServer.h           # HTTP 服务器接口
+├── HudWindow.cpp/h               # HUD呼吸灯模块
 ```
 
 #### Python 版本 (`Python/`)
