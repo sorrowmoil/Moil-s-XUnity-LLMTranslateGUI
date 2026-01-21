@@ -109,6 +109,7 @@ src/
 ├── RegexManager.cpp / .h         # Regex-based pre/postprocessor
 ├── translate.ico                  # Application icon
 ├── TranslationServer.h           # HTTP server interface
+├── HudWindow.cpp/.h              # HUD light
 ```
 
 #### Python Version (`Python/`)
