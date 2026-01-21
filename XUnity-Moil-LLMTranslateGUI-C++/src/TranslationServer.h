@@ -6,132 +6,168 @@
 #include <deque>
 #include <mutex>
 #include <map>
-#include <atomic>
-// #include <future>             // [Commented Out/已注释]
-// #include <condition_variable> // [Commented Out/已注释]
+#include <atomic> // 必须包含 / Must include
 #include "ConfigManager.h"
 #include "httplib.h"
 
 /**
- * @brief Conversation Context Structure
- * @brief 对话上下文结构体
- *
- * Stores the chat history for a specific client to enable continuous conversation.
- * 存储特定客户端的聊天记录，以实现连续对话（上下文记忆）功能。
+ * 对话上下文结构体
+ * Conversation Context Structure
+ * 用于存储和管理每个客户端的对话历史记录
+ * Used to store and manage conversation history for each client
  */
 struct Context {
-    // Stores pairs of (User Input, Assistant Response)
-    // 存储 (用户输入, AI助手回复) 的成对历史
-    std::deque<std::pair<QString, QString>> history;
-    
-    // Maximum number of context rounds to keep
-    // 保留的最大上下文轮数
-    int max_len;
+    std::deque<std::pair<QString, QString>> history; // 历史对话记录 (用户输入, AI回复) / History conversation records (user input, AI response)
+    int max_len; // 最大历史记录长度 / Maximum history length
 };
-
-/* [Commented Out] Pending Request Structure for Batch Processing
-   [已注释] 用于批量处理的待处理请求结构
-struct PendingRequest {
-    QString originalText;
-    QString clientIP;
-    std::shared_ptr<std::promise<QString>> prom;
-};
-*/
 
 /**
- * @brief Translation Server Logic Class
- * @brief 翻译服务端逻辑类
- *
- * Handles HTTP requests, manages API keys, maintains conversation contexts,
- * and forwards requests to the LLM API.
- * 负责处理本地 HTTP 请求，管理 API 密钥轮询，维护对话上下文，并将请求转发给远端 LLM API。
+ * 翻译服务器类
+ * Translation Server Class
+ * 处理HTTP翻译请求，管理API密钥轮询和上下文记忆
+ * Handles HTTP translation requests, manages API key rotation and context memory
  */
 class TranslationServer : public QObject {
     Q_OBJECT
+    
 public:
+    /**
+     * 构造函数
+     * Constructor
+     * @param parent 父对象指针 / Parent object pointer
+     */
     explicit TranslationServer(QObject *parent = nullptr);
+    
+    /**
+     * 析构函数
+     * Destructor
+     */
     ~TranslationServer();
-
-    // Update runtime configuration (keys, prompts, etc.)
-    // 更新运行时配置 (如 API 密钥, 提示词, 术语表设置等)
+    
+    /**
+     * 更新服务器配置
+     * Update server configuration
+     * @param config 应用配置对象 / Application configuration object
+     */
     void updateConfig(const AppConfig& config);
-
-    // Start the HTTP listener thread
-    // 启动 HTTP 监听线程 (使用 cpp-httplib)
+    
+    /**
+     * 启动翻译服务器
+     * Start translation server
+     */
     void startServer();
-
-    // Stop the HTTP listener thread
-    // 停止 HTTP 监听线程并清理资源
+    
+    /**
+     * 停止翻译服务器
+     * Stop translation server
+     */
     void stopServer();
+    
+    /**
+     * 清除所有客户端的上下文记忆
+     * Clear context memory for all clients
+     */
+    void clearAllContexts();
 
 signals:
-    // Signal to send logs to the UI main thread
-    // 用于发送日志消息到 UI 主线程的信号 (跨线程通信)
+    /**
+     * 日志消息信号
+     * Log message signal
+     * @param msg 日志消息 / Log message
+     */
     void logMessage(QString msg);
-
-    // Signal to update token usage in the UI
-    // 用于在 UI 中更新 Token 使用情况的信号
+    
+    /**
+     * Token使用量信号
+     * Token usage signal
+     * @param prompt 输入token数量 / Input token count
+     * @param completion 输出token数量 / Output token count
+     */
     void tokenUsageReceived(int prompt, int completion);
-
+    
+    /**
+     * 工作开始信号
+     * Work started signal
+     * 当服务器开始处理翻译请求时发出
+     * Emitted when server starts processing translation request
+     */
+    void workStarted();
+    
+    /**
+     * 工作完成信号
+     * Work finished signal
+     * @param success 是否成功完成 / Whether completed successfully
+     */
+    void workFinished(bool success);
 
 private:
-    // Main loop for the httplib server (runs in a separate thread)
-    // httplib 服务器的主循环 (在单独的 std::thread 中运行，不阻塞 Qt UI)
-    void runServerLoop(); 
+    /**
+     * 服务器主循环
+     * Server main loop
+     * 处理HTTP服务器线程
+     * Handles HTTP server thread
+     */
+    void runServerLoop();
     
-    // void runBatchProcessor(); // [Commented Out/已注释]
-
-    // Core function: Sends request to AI API and parses response
-    // 核心函数：构建提示词、发送请求给 AI API 并解析返回结果 (包含重试逻辑)
+    /**
+     * 执行翻译
+     * Perform translation
+     * @param text 待翻译文本 / Text to be translated
+     * @param clientIP 客户端IP地址 / Client IP address
+     * @return 翻译结果 / Translation result
+     */
     QString performTranslation(const QString& text, const QString& clientIP);
     
-    // void processBatch(std::vector<std::shared_ptr<PendingRequest>>& batch); // [Commented Out/已注释]
-
-    // Get the next available API key (Round-Robin strategy)
-    // 获取下一个可用的 API 密钥 (轮询策略，用于负载均衡)
+    /**
+     * 获取下一个API密钥（轮询机制）
+     * Get next API key (round-robin mechanism)
+     * @return API密钥 / API key
+     */
     QString getNextApiKey();
-
-    // Generate a simplified Client ID based on IP hash
-    // 基于 IP 地址的哈希值生成简化的客户端 ID，用于区分不同用户的上下文
+    
+    /**
+     * 生成客户端唯一标识符
+     * Generate client unique identifier
+     * @param ip 客户端IP地址 / Client IP address
+     * @return 客户端ID / Client ID
+     */
     QString generateClientId(const std::string& ip);
-
-    AppConfig m_config;
-    std::atomic<bool> m_running;            // Thread-safe running flag / 线程安全的运行标志
-    std::thread* m_serverThread = nullptr;  // Pointer to the server thread / 指向 HTTP 服务器线程的指针
-    // std::thread* m_batchThread = nullptr; // [Commented Out/已注释]
     
-    httplib::Server* m_svr = nullptr;       // The actual HTTP server instance / 实际的 httplib 服务器实例
-
-    /* [Commented Out] Batch processing queue
-       [已注释] 批量处理队列
-    std::deque<std::shared_ptr<PendingRequest>> m_requestQueue;
-    std::mutex m_queueMutex;
-    std::condition_variable m_queueCv;
-    */
-
-    // Context Storage: Map ClientID -> Context
-    // 上下文存储：映射 ClientID -> 上下文结构体
-    std::map<std::string, Context> m_contexts;
-    
-    // Mutex to protect context map from concurrent access
-    // 互斥锁，保护 m_contexts 免受多线程并发访问冲突
-    std::mutex m_contextMutex; 
-    
-    // API Key Management
-    // API 密钥管理
-    std::vector<QString> m_apiKeys;
-    int m_currentKeyIndex = 0;
-    std::mutex m_keyMutex;     // Protects key rotation / 保护密钥轮询索引
-
-    // Error Retry Messages
-    // 错误重试相关函数声明
-    
-    // Performs one attempt of translation without retry logic
-    // 执行单次翻译尝试，不包含重试循环
+    /**
+     * 执行单次翻译尝试
+     * Perform single translation attempt
+     * @param text 待翻译文本 / Text to be translated
+     * @param clientIP 客户端IP地址 / Client IP address
+     * @return 翻译结果 / Translation result
+     */
     QString performSingleTranslationAttempt(const QString& text, const QString& clientIP);
     
-    // Checks if the returned string is a valid translation (not an error message or empty)
-    // 检查返回的字符串是否为有效的翻译结果（非错误信息或空）
+    /**
+     * 验证翻译结果是否有效
+     * Validate if translation result is valid
+     * @param result 翻译结果 / Translation result
+     * @return 是否有效 / Whether result is valid
+     */
     bool isValidTranslationResult(const QString& result);
 
+    // 配置成员变量 / Configuration member variables
+    AppConfig m_config; // 应用配置 / Application configuration
+    std::atomic<bool> m_running; // 服务器运行状态 / Server running status
+    
+    // --- 新增：原子停止旗标，用于打破阻塞 ---
+    // --- New: Atomic stop flag, used to break blocking ---
+    std::atomic<bool> m_stopRequested; // 停止请求标志 / Stop request flag
+    
+    // 线程和服务器指针 / Thread and server pointers
+    std::thread* m_serverThread = nullptr; // 服务器运行线程 / Server running thread
+    httplib::Server* m_svr = nullptr; // HTTP服务器实例 / HTTP server instance
+    
+    // 上下文管理 / Context management
+    std::map<std::string, Context> m_contexts; // 客户端ID到上下文的映射 / Map from client ID to context
+    std::mutex m_contextMutex; // 上下文访问互斥锁 / Context access mutex
+    
+    // API密钥管理 / API key management
+    std::vector<QString> m_apiKeys; // API密钥列表 / API key list
+    int m_currentKeyIndex = 0; // 当前使用的密钥索引 / Current key index
+    std::mutex m_keyMutex; // 密钥访问互斥锁 / Key access mutex
 };
