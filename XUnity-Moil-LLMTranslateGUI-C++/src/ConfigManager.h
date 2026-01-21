@@ -24,7 +24,7 @@ struct AppConfig {
     // 最大线程数 / Maximum number of threads
     int max_threads = 8;
     // 语言设置 / Language setting
-    int language = 0; 
+    int language = 1; 
     
     // --- 新增 / New Additions ---
     // 是否开启术语表 / Whether to enable the glossary
