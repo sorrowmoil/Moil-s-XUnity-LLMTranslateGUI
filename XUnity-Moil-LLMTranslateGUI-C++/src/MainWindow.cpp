@@ -116,10 +116,41 @@ const char* TIP_CLEAR_CTX[] = {"Clear Context", "清除历史对话记忆"};
 
 // API下拉框提示
 // API combobox tip
-const char* TIP_COMBO_MAIN[] = {
-    "Enter API Address or select from list.\nMust support /v1/chat/completions format.",
-    "在此输入 API 地址，或从下拉列表中选择主流服务商。\n所有地址必须兼容 OpenAI 接口格式 (/v1/chat/completions)。"
+const ApiPresetDef PRESETS_DATA[] = {
+    {
+        "https://api.openai.com/v1", 
+        {"OpenAI Official API\n(Compat: Native Standard)", "OpenAI 官方接口\n(兼容性: 原生标准)"}
+    },
+    {
+        "https://api.deepseek.com", 
+        {"DeepSeek Official API\n(Compat: Fully compatible with OpenAI)", "DeepSeek 官方接口\n(兼容性: 完全兼容 OpenAI)"}
+    },
+    {
+        "https://api.x.ai/v1", 
+        {"Grok (xAI) Official API\n(Compat: Fully compatible with OpenAI)", "Grok (xAI) 官方接口\n(兼容性: 完全兼容 OpenAI)"}
+    },
+    {
+        "https://api.siliconflow.cn/v1", 
+        {"SiliconFlow\n(High-speed relay, supports DeepSeek/Qwen)", "硅基流动 (SiliconFlow)\n(国内高速中转，支持 DeepSeek/Qwen 等)"}
+    },
+    {
+        "https://openrouter.ai/api/v1", 
+        {"OpenRouter Aggregator\n(Compat: Fully compatible with OpenAI)", "OpenRouter 聚合平台\n(兼容性: 完全兼容 OpenAI)"}
+    },
+    {
+        "https://generativelanguage.googleapis.com/v1beta/openai", 
+        {"Google Gemini (OpenAI Endpoint)\n(Note: Do not use native Google API)", "Google Gemini (OpenAI 兼容端点)\n(注意: 不要使用 Google 原生 API 地址)"}
+    },
+    {
+        "http://localhost:11434/v1", 
+        {"Ollama Local Service\n(Compat: Requires 'ollama serve')", "Ollama 本地服务\n(兼容性: 需运行 Ollama serve)"}
+    },
+    {
+        "http://localhost:1234/v1", 
+        {"LM Studio Local Service\n(Compat: Server mode required)", "LM Studio 本地服务\n(兼容性: 需开启 Server 模式)"}
+    }
 };
+
 
 // ==========================================
 // 📚 API 预设字典 (Global Presets)
