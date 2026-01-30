@@ -973,27 +973,26 @@ AppConfig MainWindow::getUiConfig() {
  * @param running 是否正在运行 / Whether service is running
  */
 void MainWindow::toggleControls(bool running) {
-    // 设置按钮状态 / Set button states
+    // 核心配置在运行时必须禁用，防止逻辑冲突 / Core configurations must be disabled when running to prevent logical conflicts
     startBtn->setEnabled(!running);
     stopBtn->setEnabled(running);
-    
-    // 设置API相关控件状态 / Set API related control states
     apiAddressCombo->setEnabled(!running);
     apiKeyEdit->setEnabled(!running);
-    
-    // 设置服务器参数控件状态 / Set server parameter control states
     portEdit->setEnabled(!running);
     threadSpin->setEnabled(!running);
-    
-    // 设置术语表相关控件状态 / Set glossary related control states
     chkGlossary->setEnabled(!running);
+    
+    // 术语表路径选择在运行时禁用 (防止文件指针丢失) / Glossary path selection disabled when running (to prevent file pointer loss)
     glossaryCombo->setEnabled(!running);
     btnSelectGlossary->setEnabled(!running);
+
+    // ✅ 修复：无论服务是否运行，始终允许点击 "Edit" 按钮 / ✅ FIXED: Always allow clicking "Edit" button regardless of service running state
+    // 这样用户就可以在翻译服务运行时，随时打开文本进行手动修正 / This way users can open the text for manual corrections while the translation service is running
+    if(btnOpenAuto) {
+        btnOpenAuto->setEnabled(true); 
+    }
     
-    // 设置自动翻译按钮状态 / Set auto translation button state
-    if(btnOpenAuto) btnOpenAuto->setEnabled(!running); 
-    
-    // 设置HUD按钮状态 / Set HUD button state
+    // HUD 模式切换仅在运行时可用 / HUD mode switch only available when running
     hudBtn->setEnabled(running);
 }
 
