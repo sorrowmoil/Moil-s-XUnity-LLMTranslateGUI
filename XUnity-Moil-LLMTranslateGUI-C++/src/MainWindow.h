@@ -14,7 +14,7 @@
 #include "TranslationServer.h"
 #include <QMenu>
 #include "TokenManager.h"
-#include "HudWindow.h" // 引入 HUD 头文件
+#include "HudWindow.h" 
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -48,11 +48,14 @@ private slots:
     void toggleLanguage();
     void onSelectGlossary();
     
-    // --- HUD 模式相关槽函数 (新增) ---
-    void switchToHud();             // 切换到 HUD
-    void restoreFromHud();          // 从 HUD 还原
-    void onServerWorkStarted();     // 服务器开始忙碌
-    void onServerWorkFinished(bool success); // 服务器工作结束
+    // 📝 新增：打开自动翻译文件的槽函数
+    void onOpenAutoTranslations();
+    
+    // --- HUD 模式相关槽函数 ---
+    void switchToHud();             
+    void restoreFromHud();          
+    void onServerWorkStarted();     
+    void onServerWorkFinished(bool success); 
 
 private:
     void setupUi();
@@ -60,7 +63,10 @@ private:
     AppConfig getUiConfig();
     void toggleControls(bool running); 
     void applyTheme(bool isDark);      
-    void updateUIText();               
+    void updateUIText();        
+    
+    // 添加路径到历史记录的辅助函数
+    void addToGlossaryHistory(const QString& path);   
     
     void smoothSwitch(std::function<void()> changeLogic);
 
@@ -81,13 +87,16 @@ private:
     QTextEdit *logArea;
     
     QCheckBox *chkGlossary;       
-    QLineEdit *glossaryPathEdit;  
+    QComboBox *glossaryCombo;  
+    
     QPushButton *btnSelectGlossary; 
+    // 📝 新增：编辑按钮
+    QPushButton *btnOpenAuto;
 
     // 按钮
     QPushButton *startBtn;
     QPushButton *stopBtn;
-    QPushButton *hudBtn; // 新增 HUD 按钮
+    QPushButton *hudBtn; 
     QPushButton *fetchModelBtn;
     QPushButton *themeBtn;
     QPushButton *testBtn;
@@ -116,6 +125,5 @@ private:
     QPropertyAnimation *fadeAnim; 
     TokenManager *m_tokenManager; 
     
-    // --- HUD 窗口实例 (新增) ---
     HudWindow *m_hudWindow = nullptr;
 };

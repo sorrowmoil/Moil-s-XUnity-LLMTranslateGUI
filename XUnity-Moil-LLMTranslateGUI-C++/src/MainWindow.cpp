@@ -1,8 +1,8 @@
 /**
  * MainWindow.cpp - Moil's XUnity LLM Translator GUI Implementation
  * MainWindow.cpp - Moil的XUnity大模型翻译器GUI实现
- * Updated by CAN: Fixed API Preset Localization, Enhanced Styling.
- * 由CAN更新：修复API预设本地化，增强样式
+ * Updated by CAN: Merged detailed tooltips with full functionality.
+ * 由CAN更新：合并详细工具提示与完整功能
  */
 
 #include "MainWindow.h"
@@ -23,73 +23,72 @@
 #include <QScrollBar>
 #include <QGraphicsOpacityEffect>
 #include <QPropertyAnimation>
-#include <QListView> // Used for ComboBox view styling / 用于ComboBox视图样式
+#include <QListView> 
+#include <QDesktopServices>
+#include <QUrl>
+#include <QFileInfo>
 
 // ==========================================
-// 🌍 多语言字典定义
-// 🌍 Multi-language Dictionary Definitions
+// 🌍 多语言字典定义 (UI Text)
+// 🌍 Multi-language Dictionary Definition (UI Text)
+// Index 0: English, Index 1: Chinese
+// 索引0: 英文, 索引1: 中文
 // ==========================================
 
-// 界面标题
-// Window titles
+// 窗口标题 / Window titles
 const char* STR_TITLE[] = {"Moil's XUnity LLM Translator", "Moil的XUnity大模型翻译GUI"};
 
-// 配置区域标签
-// Configuration section labels
+// 配置区域标题 / Configuration section titles
 const char* STR_API_CFG[] = {"API Configuration", "API 配置"};
 const char* STR_LOG_AREA[] = {"Runtime Logs", "运行日志"};
 
-// API配置相关文本
-// API configuration related text
+// API配置相关文本 / API configuration related text
 const char* STR_API_ADDR[] = {"API Address:", "API 地址:"};
 const char* STR_API_KEY[] = {"API Key:", "API 密钥:"};
 const char* STR_MODEL[] = {"Model Name:", "模型名称:"};
 const char* STR_FETCH[] = {"Fetch", "获取"};
 
-// 服务器参数文本
-// Server parameter text
+// 服务器参数文本 / Server parameter text
 const char* STR_PORT[] = {"Port:", "端口:"};
 const char* STR_THREAD[] = {"Threads:", "线程:"};
 const char* STR_TEMP[] = {"Temp:", "温度:"};
 const char* STR_CTX[] = {"Context:", "上下文:"};
 
-// 提示词相关文本
-// Prompt related text
+// 提示词相关文本 / Prompt related text
 const char* STR_SYS_PROMPT[] = {"System Prompt:", "系统提示:"};
 const char* STR_PRE_PROMPT[] = {"Pre-Prompt:", "前置文本:"};
 
-// 控制按钮文本
-// Control button text
+// 控制按钮文本 / Control button text
 const char* STR_START[] = {"Start Service", "启动服务"};
 const char* STR_STOP[] = {"Stop Service", "停止服务"};
 const char* STR_HUD[] = {"HUD Mode", "HUD 模式"};
 const char* STR_TEST[] = {"Test Config", "测试配置"};
-
-// 文件操作文本
-// File operation text
 const char* STR_LOAD[] = {"Load Config", "读取配置"};
 const char* STR_SAVE[] = {"Save Config", "保存配置"};
 const char* STR_EXPORT[] = {"Export Log", "导出日志"};
 
-// 主题和语言文本
-// Theme and language text
+// 主题和语言文本 / Theme and language text
 const char* STR_THEME_LIGHT[] = {"Light Mode", "切换亮色"};
 const char* STR_THEME_DARK[] = {"Dark Mode", "切换暗色"};
-const char* STR_LANG_BTN[] = {"中文", "English"};
+const char* STR_LANG_BTN[] = {"中文", "English"}; // 按钮文本通常显示目标语言 / Button text usually shows target language
 
-// 术语表相关文本
-// Glossary related text
+// 术语表相关文本 / Glossary related text
 const char* STR_GLOSSARY[] = {"Glossary:", "术语表:"};
 const char* STR_CHK_GLOSSARY[] = {"Self-Evolve", "启用自进化"};
 const char* STR_CLEAR_LOG[] = {"Clear Log", "清空日志"};
 
-// Token统计文本
-// Token statistics text
+// Token统计文本 / Token statistics text
 const char* STR_TOKENS[] = {"Tokens:", "消耗:"};
 const char* TIP_TOKENS[] = {"Total Usage (Prompt + Completion)", "本次运行总消耗 (输入+输出)"};
 
-// 日志消息
-// Log messages
+// ==========================================
+// 📝 多语言字典定义 (Logs)
+// 📝 Multi-language Dictionary Definition (Logs)
+// Index 0: English, Index 1: Chinese
+// 索引0: 英文, 索引1: 中文
+// ==========================================
+
+// 日志消息 / Log messages
 const char* LOG_TEST_START[] = {"=== Testing API Keys ===", "=== 开始测试所有 API Key ==="};
 const char* LOG_NO_KEY[] = {"❌ No API Key", "❌ 未找到 API Key"};
 const char* LOG_PASS[] = {"Pass", "测试通过"};
@@ -101,78 +100,87 @@ const char* LOG_CFG_SAVED[] = {"Config Saved: ", "配置已保存: "};
 const char* LOG_CFG_LOADED[] = {"Config Loaded: ", "配置已加载: "};
 const char* LOG_EXPORTED[] = {"Log Exported to run_log.txt", "日志已导出到 run_log.txt"};
 
-// 工具提示文本
-// Tooltip text
-const char* TIP_PORT[] = {"Local Listening Port", "本地监听端口"};
-const char* TIP_THREAD[] = {"Concurrent Threads", "并发线程数"};
-const char* TIP_TEMP[] = {"Sampling Temperature", "采样温度"};
-const char* TIP_CTX[] = {"Context Memory", "上下文记忆"};
-const char* TIP_GLOSSARY[] = {"Select _Substitutions.txt", "选择 _Substitutions.txt"};
-
-// 上下文清理相关文本
-// Context clearing related text
+// 上下文清理相关文本 / Context clearing related text
 const char* STR_CLEAR_CTX[] = {"Clear", "清空"};
 const char* TIP_CLEAR_CTX[] = {"Clear Context", "清除历史对话记忆"};
 
-// API下拉框提示
-// API combobox tip
-const ApiPresetDef PRESETS_DATA[] = {
-    {
-        "https://api.openai.com/v1", 
-        {"OpenAI Official API\n(Compat: Native Standard)", "OpenAI 官方接口\n(兼容性: 原生标准)"}
-    },
-    {
-        "https://api.deepseek.com", 
-        {"DeepSeek Official API\n(Compat: Fully compatible with OpenAI)", "DeepSeek 官方接口\n(兼容性: 完全兼容 OpenAI)"}
-    },
-    {
-        "https://api.x.ai/v1", 
-        {"Grok (xAI) Official API\n(Compat: Fully compatible with OpenAI)", "Grok (xAI) 官方接口\n(兼容性: 完全兼容 OpenAI)"}
-    },
-    {
-        "https://api.siliconflow.cn/v1", 
-        {"SiliconFlow\n(High-speed relay, supports DeepSeek/Qwen)", "硅基流动 (SiliconFlow)\n(国内高速中转，支持 DeepSeek/Qwen 等)"}
-    },
-    {
-        "https://openrouter.ai/api/v1", 
-        {"OpenRouter Aggregator\n(Compat: Fully compatible with OpenAI)", "OpenRouter 聚合平台\n(兼容性: 完全兼容 OpenAI)"}
-    },
-    {
-        "https://generativelanguage.googleapis.com/v1beta/openai", 
-        {"Google Gemini (OpenAI Endpoint)\n(Note: Do not use native Google API)", "Google Gemini (OpenAI 兼容端点)\n(注意: 不要使用 Google 原生 API 地址)"}
-    },
-    {
-        "http://localhost:11434/v1", 
-        {"Ollama Local Service\n(Compat: Requires 'ollama serve')", "Ollama 本地服务\n(兼容性: 需运行 Ollama serve)"}
-    },
-    {
-        "http://localhost:1234/v1", 
-        {"LM Studio Local Service\n(Compat: Server mode required)", "LM Studio 本地服务\n(兼容性: 需开启 Server 模式)"}
-    }
+// 📝 新增按钮文本 / New button text
+const char* STR_BTN_AUTO[] = {"Edit", "编辑"};
+const char* TIP_BTN_AUTO[] = {
+    "Open _AutoGeneratedTranslations.txt in same folder", 
+    "打开同目录下的 _AutoGeneratedTranslations.txt (自动翻译结果)"
 };
 
+// ==========================================
+// 💡 详细工具提示 (Detailed Tooltips) - Merged
+// 💡 Detailed Tooltips (Detailed Tooltips) - Merged
+// Index 0: English, Index 1: Chinese
+// 索引0: 英文, 索引1: 中文
+// ==========================================
+
+// 端口提示 / Port tooltip
+const char* TIP_PORT[] = {
+    "Local Listening Port\nEnsure XUnity Endpoint is set to http://localhost:port",
+    "本地监听端口\n请确保 XUnity 配置文件 Endpoint 设置为 http://localhost:端口号"
+};
+
+// 线程提示 / Thread tooltip
+const char* TIP_THREAD[] = {
+    "Concurrent Threads\nRecommended: Depends on your CPU\nNote: Can speed up translation to some extent, too many may cause system lag",
+    "并发线程数 (Max Threads)\n建议值: 取决于你电脑的线程数\n注意: 一定程度上可以加快翻译工作，过多会导致系统卡顿"
+};
+
+// 温度提示 / Temperature tooltip
+const char* TIP_TEMP[] = {
+    "Sampling Temperature\n0.0-0.3: Strict\n0.7-1.0: Standard\n>1.0: Creative/Random",
+    "采样温度 (Temperature)\n0.0-0.3: 严谨\n0.7-1.0: 标准\n>1.0: 随机/创造性"
+};
+
+// 上下文提示 / Context tooltip
+const char* TIP_CTX[] = {
+    "Context Memory\nNumber of history turns to carry.\nNote: More context consumes more tokens.",
+    "上下文记忆 (Context)\n携带的历史对话轮数。\n注意：上下文越多，消耗 Token 越多。"
+};
+
+// 术语表提示 / Glossary tooltip
+const char* TIP_GLOSSARY[] = {
+    "Select XUnity's _Substitutions.txt.\nLLM will reference and append to it.",
+    "选择 XUnity 的 _Substitutions.txt 文件。\nLLM 将自动参考并补充该文件。"
+};
+
+// API下拉框提示 / API combobox tip
+const char* TIP_COMBO_MAIN[] = {
+    "Enter API Address or select from list.\nMust support /v1/chat/completions format.",
+    "在此输入 API 地址，或从下拉列表中选择主流服务商。\n所有地址必须兼容 OpenAI 接口格式 (/v1/chat/completions)。"
+};
 
 // ==========================================
-// 📚 API 预设字典 (Global Presets)
-// 📚 API Preset Dictionary (Global Presets)
+// ⚙️ API Presets
+// ⚙️ API预设
 // ==========================================
 
-// API预设数据结构
-// API preset data structure
+// API预设数据结构 / API preset data structure
 struct ApiPresetDef {
     const char* url;          // API地址 / API URL
     const char* tips[2];      // 提示信息数组 [0:英文, 1:中文] / Tip array [0:English, 1:Chinese]
 };
 
-// API预设数据
-// API preset data
+// API预设数据 / API preset data
 const ApiPresetDef PRESETS_DATA[] = {
-    {
-        "https://api.openai.com/v1", 
-        {"OpenAI Official API\n(Compat: Native Standard)", "OpenAI 官方接口\n(兼容性: 原生标准)"}
-    },
-    // ... 其他预设 / Other presets
+    {"https://api.openai.com/v1", {"OpenAI Official API", "OpenAI 官方接口"}},
+    {"https://api.deepseek.com", {"DeepSeek Official API", "DeepSeek 官方接口"}},
+    {"https://api.x.ai/v1", {"Grok (xAI) Official API", "Grok (xAI) 官方接口"}},
+    {"https://api.siliconflow.cn/v1", {"SiliconFlow", "硅基流动 (SiliconFlow)"}},
+    {"https://openrouter.ai/api/v1", {"OpenRouter Aggregator", "OpenRouter 聚合平台"}},
+    {"https://generativelanguage.googleapis.com/v1beta/openai", {"Google Gemini", "Google Gemini (OpenAI 兼容端点)"}},
+    {"http://localhost:11434/v1", {"Ollama Local Service", "Ollama 本地服务"}},
+    {"http://localhost:1234/v1", {"LM Studio Local Service", "LM Studio 本地服务"}}
 };
+
+// ==========================================
+// 🚀 Implementation
+// 🚀 实现
+// ==========================================
 
 /**
  * MainWindow类构造函数
@@ -191,7 +199,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // 创建Token管理器和翻译服务器 / Create TokenManager and TranslationServer
     m_tokenManager = new TokenManager(this);
     server = new TranslationServer(this);
-
+    
     // 创建HUD窗口 / Create HUD window
     m_hudWindow = new HudWindow(nullptr);
     
@@ -239,6 +247,7 @@ MainWindow::~MainWindow() {
         m_hudWindow->close();
         delete m_hudWindow;
     }
+    
     // 停止服务器 / Stop server
     server->stopServer();
 }
@@ -335,7 +344,7 @@ void MainWindow::toggleLanguage() {
         
         // 处理事件并调整窗口大小 / Process events and adjust window size
         qApp->processEvents();
-        adjustSize(); 
+        adjustSize();
         resize(400, 800); 
     });
 }
@@ -352,6 +361,35 @@ void MainWindow::toggleTheme() {
 }
 
 /**
+ * 添加术语表文件到历史记录
+ * Add glossary file to history
+ * @param path 术语表文件路径 / Glossary file path
+ */
+void MainWindow::addToGlossaryHistory(const QString& path) {
+    if (path.isEmpty()) return;
+    
+    // 获取当前历史记录 / Get current history
+    QStringList items;
+    for (int i = 0; i < glossaryCombo->count(); ++i) {
+        items << glossaryCombo->itemText(i);
+    }
+    
+    // 移除重复项并添加到首位 / Remove duplicates and add to front
+    items.removeAll(path);
+    items.insert(0, path);
+    
+    // 限制历史记录数量 / Limit history count
+    while (items.size() > 5) {
+        items.removeLast();
+    }
+    
+    // 更新下拉框 / Update combobox
+    glossaryCombo->clear();
+    glossaryCombo->addItems(items);
+    glossaryCombo->setCurrentIndex(0); 
+}
+
+/**
  * 选择术语表文件
  * Select glossary file
  */
@@ -359,10 +397,43 @@ void MainWindow::onSelectGlossary() {
     // 打开文件对话框 / Open file dialog
     QString fileName = QFileDialog::getOpenFileName(this, "Select File", "", "Text Files (*.txt);;All Files (*.*)");
     
-    // 如果选择了文件，设置到编辑框 / If file selected, set to edit box
+    // 如果选择了文件，添加到历史记录 / If file selected, add to history
     if (!fileName.isEmpty()) {
-        glossaryPathEdit->setText(fileName);
+        addToGlossaryHistory(fileName);
     }
+}
+
+/**
+ * 打开自动翻译文件
+ * Open auto-generated translations file
+ */
+void MainWindow::onOpenAutoTranslations() {
+    // 获取当前术语表路径 / Get current glossary path
+    QString currentPath = glossaryCombo->currentText();
+    if (currentPath.isEmpty()) {
+        return;
+    }
+
+    // 获取目录并构建自动翻译文件路径 / Get directory and build auto translation file path
+    QFileInfo fi(currentPath);
+    QString dir = fi.absolutePath();
+    
+    // 假设自动生成文件与 _Substitutions.txt 在同一目录
+    // Assuming auto-generated file is in same directory as _Substitutions.txt
+    QString targetFile = dir + "/_AutoGeneratedTranslations.txt";
+
+    // 检查文件是否存在 / Check if file exists
+    QFileInfo targetFi(targetFile);
+    if (!targetFi.exists()) {
+        QMessageBox::warning(this, 
+            (m_currentLang == 1 ? "文件未找到" : "File Not Found"), 
+            (m_currentLang == 1 ? "未找到 _AutoGeneratedTranslations.txt。\n请确认游戏是否已经运行并生成了翻译。" : 
+            "Could not find _AutoGeneratedTranslations.txt.\nPlease ensure the game has run and generated translations."));
+        return;
+    }
+
+    // 使用系统默认编辑器打开 / Open with system default editor
+    QDesktopServices::openUrl(QUrl::fromLocalFile(targetFile));
 }
 
 /**
@@ -414,31 +485,42 @@ void MainWindow::updateUIText() {
     exportBtn->setText(STR_EXPORT[i]);
     langBtn->setText(STR_LANG_BTN[i]);
 
-    // 设置工具提示 / Set tooltips
+    // 设置自动翻译按钮 / Set auto translation button
+    if (btnOpenAuto) {
+        btnOpenAuto->setText(STR_BTN_AUTO[i]);
+        btnOpenAuto->setToolTip(TIP_BTN_AUTO[i]);
+    }
+
+    // 🌟 更新为详细的 Tooltips 🌟
+    // 🌟 Update to detailed tooltips 🌟
     portEdit->setToolTip(TIP_PORT[i]);
     lblPort->setToolTip(TIP_PORT[i]);
+    
     threadSpin->setToolTip(TIP_THREAD[i]);
     lblThread->setToolTip(TIP_THREAD[i]);
+    
     tempSpin->setToolTip(TIP_TEMP[i]);
     lblTemp->setToolTip(TIP_TEMP[i]);
+    
     contextSpin->setToolTip(TIP_CTX[i]);
     lblCtx->setToolTip(TIP_CTX[i]);
 
     // 设置术语表工具提示 / Set glossary tooltips
     lblGlossary->setToolTip(TIP_GLOSSARY[i]);
     chkGlossary->setToolTip(TIP_GLOSSARY[i]);
-    glossaryPathEdit->setToolTip(TIP_GLOSSARY[i]);
     btnSelectGlossary->setToolTip(TIP_GLOSSARY[i]);
+    
+    if (glossaryCombo) {
+        glossaryCombo->setToolTip(TIP_GLOSSARY[i]);
+    }
     
     // 设置HUD按钮工具提示 / Set HUD button tooltip
     hudBtn->setToolTip(i==0 ? "Switch to Mini-HUD mode" : "切换至迷你悬浮窗模式");
     
-    // 🔥 核心更新：更新API下拉框提示和选项提示 🔥
-    // 🔥 Core update: Update API combobox tooltip and item tooltips 🔥
+    // 更新API下拉框提示和选项提示 / Update API combobox tooltip and item tooltips
     if (apiAddressCombo) {
-        // 更新整体提示 / Update overall tooltip
         apiAddressCombo->setToolTip(TIP_COMBO_MAIN[i]);
-
+        
         // 遍历更新下拉选项的提示 / Iterate to update dropdown item tooltips
         for (int k = 0; k < apiAddressCombo->count(); ++k) {
             QString itemUrl = apiAddressCombo->itemText(k);
@@ -459,26 +541,20 @@ void MainWindow::updateUIText() {
     lblTokens->setToolTip(TIP_TOKENS[i]);
 }
 
-// ==========================================
-// 🎨 THEME & STYLE: 完美复刻 & 下拉框适配
-// 🎨 THEME & STYLE: Perfect Replication & ComboBox Adaptation
-// ==========================================
-
 /**
  * 应用主题样式
  * Apply theme styling
  * @param isDark 是否为暗色主题 / Whether to apply dark theme
  */
 void MainWindow::applyTheme(bool isDark) {
-    // 1. 恢复默认样式 / Restore default style
+    // 恢复默认样式 / Restore default style
     qApp->setStyle(QStyleFactory::create("Fusion"));
     
-    // 2. 定义颜色变量 / Define color variables
+    // 定义颜色变量 / Define color variables
     QColor windowColor, baseColor, textColor, btnColor, highlightColor, linkColor;
     QString qssBtnBorder, qssBtnBg, qssBtnHover;
     
-    // 🔥 新增：下拉按钮专用的反差色 🔥
-    // 🔥 New: Contrast colors specifically for dropdown buttons 🔥
+    // 下拉按钮专用的反差色 / Contrast colors specifically for dropdown buttons
     QString dropDownBg, dropDownHover; 
     
     // 设置深色或亮色模式的配色方案
@@ -495,8 +571,7 @@ void MainWindow::applyTheme(bool isDark) {
         qssBtnBg     = "#3C3C3C";
         qssBtnHover  = "#505050";
         
-        // 🔥 反差色设计：背景黑 -> 按钮亮 🔥
-        // 🔥 Contrast design: Black background -> Light buttons 🔥
+        // 反差色设计：背景黑 -> 按钮亮 / Contrast design: Black background -> Light buttons
         dropDownBg    = "#C0C0C0"; 
         dropDownHover = "#FFFFFF"; 
         
@@ -514,8 +589,7 @@ void MainWindow::applyTheme(bool isDark) {
         qssBtnBg     = "#E1E1E1";
         qssBtnHover  = "#D0D0D0";
         
-        // 🔥 反差色设计：背景白 -> 按钮暗 🔥
-        // 🔥 Contrast design: White background -> Dark buttons 🔥
+        // 反差色设计：背景白 -> 按钮暗 / Contrast design: White background -> Dark buttons
         dropDownBg    = "#4D4D4D"; 
         dropDownHover = "#2D2D2D"; 
         
@@ -523,7 +597,7 @@ void MainWindow::applyTheme(bool isDark) {
         if(themeBtn) themeBtn->setText(STR_THEME_DARK[m_currentLang]);
     }
     
-    // 3. 设置全局调色板 / Set global palette
+    // 设置全局调色板 / Set global palette
     QPalette p;
     p.setColor(QPalette::Window, windowColor);
     p.setColor(QPalette::WindowText, textColor);
@@ -539,122 +613,35 @@ void MainWindow::applyTheme(bool isDark) {
     p.setColor(QPalette::HighlightedText, Qt::white);
     qApp->setPalette(p);
     
-    // 4. 应用QSS样式表 / Apply QSS stylesheet
+    // 应用QSS样式表 / Apply QSS stylesheet
+    // CAN UPDATED: Changed QToolTip color from %6 (highlightColor) to #E6B422 (Gold)
     QString qss = QString(R"(
-        /* === GroupBox === */
-        QGroupBox {
-            border: 1px solid %1;
-            border-radius: 5px;
-            margin-top: 1.2em; 
-            font-weight: bold;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left;
-            left: 10px;
-            padding: 0 3px;
-            color: %6; 
-        }
+        QGroupBox { border: 1px solid %1; border-radius: 5px; margin-top: 1.2em; font-weight: bold; }
+        QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 3px; color: %6; }
+        QPushButton { border: 1px solid %3; border-radius: 4px; background-color: %4; padding: 5px; font-weight: bold; }
+        QPushButton:hover { background-color: %5; border-color: %2; }
+        QPushButton:pressed { background-color: %2; color: white; border-color: %2; }
+        QPushButton:disabled { background-color: transparent; border: 1px solid %1; color: gray; }
         
-        /* === 普通按钮 / Normal Buttons === */
-        QPushButton {
-            border: 1px solid %3;       
-            border-radius: 4px;         
-            background-color: %4;       
-            padding: 5px;
-            font-weight: bold;
-        }
-        QPushButton:hover {
-            background-color: %5;       
-            border-color: %2;           
-        }
-        QPushButton:pressed {
-            background-color: %2;       
-            color: white;               
-            border-color: %2;
-        }
-        QPushButton:disabled {
-            background-color: transparent;
-            border: 1px solid %1;
-            color: gray;
-        }
+        QLineEdit, QComboBox { border: 1px solid %3; border-radius: 4px; background-color: %7; padding: 4px; color: palette(text); selection-background-color: %2; }
+        QComboBox:hover, QLineEdit:hover { border-color: %2; }
         
-        /* === 🔽 ComboBox (核心修改) / ComboBox (Core Modification) === */
-        QLineEdit, QComboBox {
-            border: 1px solid %3;       
-            border-radius: 4px;
-            background-color: %7;       
-            padding: 4px;
-            color: palette(text);
-            selection-background-color: %2;
-        }
-        QComboBox:hover, QLineEdit:hover {
-            border-color: %2;
-        }
+        QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 25px; border-top-right-radius: 4px; border-bottom-right-radius: 4px; background-color: %9; border-left-width: 1px; border-left-color: %3; border-left-style: solid; }
+        QComboBox::drop-down:hover { background-color: %10; }
+        QComboBox::down-arrow { image: none; width: 0px; height: 0px; border: none; }
+        QComboBox QAbstractItemView { border: 1px solid %2; selection-background-color: %2; background-color: %7; outline: none; }
         
-        /* 🔥 下拉按钮容器: 颜色反转块 / Dropdown Button Container: Color Inversion Block 🔥 */
-        QComboBox::drop-down {
-            subcontrol-origin: padding;
-            subcontrol-position: top right;
-            width: 25px; 
-            border-top-right-radius: 4px; 
-            border-bottom-right-radius: 4px;
-            background-color: %9; /* 反差色背景 / Contrast background */
-            border-left-width: 1px;
-            border-left-color: %3; 
-            border-left-style: solid; 
-        }
-        QComboBox::drop-down:hover {
-             background-color: %10;
-        }
-        /* 🚫 禁用箭头图标，纯靠色块引导 / Disable arrow icon, rely only on color block for guidance */
-        QComboBox::down-arrow {
-            image: none;
-            width: 0px;
-            height: 0px;
-            border: none;
-        }
-        /* 弹窗 / Dropdown popup */
-        QComboBox QAbstractItemView {
-            border: 1px solid %2;
-            selection-background-color: %2;
-            background-color: %7;
-            outline: none;
-        }
+        QPushButton#btnStart { background-color: #388E3C; color: white; border: 1px solid #2E7D32; }
+        QPushButton#btnStart:hover { background-color: #4CAF50; border-color: #43A047; }
+        QPushButton#btnStart:pressed { background-color: #1B5E20; border-color: #1B5E20; }
+        QPushButton#btnStart:disabled { background-color: transparent; border: 1px solid %1; color: gray; }
+        QLabel#lblTokens { color: #E6B422; font-weight: bold; }
         
-        /* === 启动按钮 / Start Button === */
-        QPushButton#btnStart {
-            background-color: #388E3C; 
-            color: white;
-            border: 1px solid #2E7D32;
-        }
-        QPushButton#btnStart:hover {
-            background-color: #4CAF50; 
-            border-color: #43A047;
-        }
-        QPushButton#btnStart:pressed {
-            background-color: #1B5E20; 
-            border-color: #1B5E20;
-        }
-        
-        /* Token标签 / Token Label */
-        QLabel#lblTokens {
-            color: #E6B422; 
-            font-weight: bold;
-        }
+        QToolTip { border: 1px solid %2; background-color: %7; color: #E6B422; opacity: 230; padding: 4px; border-radius: 3px; }
     )")
-    .arg(qssBtnBorder)          // %1
-    .arg(highlightColor.name()) // %2
-    .arg(qssBtnBorder)          // %3
-    .arg(qssBtnBg)              // %4
-    .arg(qssBtnHover)           // %5
-    .arg(highlightColor.name()) // %6
-    .arg(baseColor.name())      // %7
-    .arg(textColor.name())      // %8
-    .arg(dropDownBg)            // %9  🔥
-    .arg(dropDownHover);        // %10 🔥
+    .arg(qssBtnBorder).arg(highlightColor.name()).arg(qssBtnBorder).arg(qssBtnBg).arg(qssBtnHover)
+    .arg(highlightColor.name()).arg(baseColor.name()).arg(textColor.name()).arg(dropDownBg).arg(dropDownHover);
     
-    // 应用样式表 / Apply stylesheet
     qApp->setStyleSheet(qss);
     
     // 更新主题状态 / Update theme state
@@ -687,8 +674,7 @@ void MainWindow::setupUi() {
         return memberPtr;
     };
 
-    // === 🔥 替换：使用QComboBox替代QLineEdit，并加入预设与提示 🔥
-    // === 🔥 Replacement: Use QComboBox instead of QLineEdit, add presets and tips 🔥
+    // API地址下拉框 / API address combobox
     apiAddressCombo = new QComboBox(this);
     apiAddressCombo->setEditable(true); 
     apiAddressCombo->setMinimumHeight(28);
@@ -703,7 +689,6 @@ void MainWindow::setupUi() {
 
     grid->addWidget(createLabel(lblApiAddr), 0, 0);
     grid->addWidget(apiAddressCombo, 0, 1);
-    // ===================================================================
 
     // API密钥输入框 / API key input field
     apiKeyEdit = new QLineEdit(this);
@@ -801,14 +786,23 @@ void MainWindow::setupUi() {
     glossaryLayout->setContentsMargins(0, 0, 0, 0);
     
     chkGlossary = new QCheckBox(this);
-    glossaryPathEdit = new QLineEdit(this);
-    glossaryPathEdit->setPlaceholderText("_Substitutions.txt Path");
+    
+    glossaryCombo = new QComboBox(this);
+    glossaryCombo->setEditable(true); 
+    glossaryCombo->setMinimumHeight(28);
+    glossaryCombo->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed); 
+    
+    btnOpenAuto = new QPushButton(STR_BTN_AUTO[m_currentLang], this);
+    btnOpenAuto->setFixedWidth(50);
+    connect(btnOpenAuto, &QPushButton::clicked, this, &MainWindow::onOpenAutoTranslations);
+
     btnSelectGlossary = new QPushButton("...", this);
     btnSelectGlossary->setFixedWidth(35);
     connect(btnSelectGlossary, &QPushButton::clicked, this, &MainWindow::onSelectGlossary);
 
     glossaryLayout->addWidget(chkGlossary);
-    glossaryLayout->addWidget(glossaryPathEdit);
+    glossaryLayout->addWidget(glossaryCombo, 1); 
+    glossaryLayout->addWidget(btnOpenAuto);
     glossaryLayout->addWidget(btnSelectGlossary);
     
     grid->addWidget(createLabel(lblGlossary), 6, 0);
@@ -917,7 +911,24 @@ void MainWindow::loadConfigToUi() {
     systemPromptEdit->setText(cfg.system_prompt);
     prePromptEdit->setText(cfg.pre_prompt);
     chkGlossary->setChecked(cfg.enable_glossary);
-    glossaryPathEdit->setText(cfg.glossary_path);
+    
+    // 加载术语表历史记录 / Load glossary history
+    glossaryCombo->clear();
+    if (!cfg.glossary_history.isEmpty()) {
+        glossaryCombo->addItems(cfg.glossary_history);
+    }
+    
+    // 设置当前术语表路径 / Set current glossary path
+    if (!cfg.glossary_path.isEmpty()) {
+        int index = glossaryCombo->findText(cfg.glossary_path);
+        if (index != -1) {
+            glossaryCombo->setCurrentIndex(index);
+        } else {
+            addToGlossaryHistory(cfg.glossary_path);
+        }
+    }
+    
+    // 设置当前语言 / Set current language
     m_currentLang = cfg.language;
 }
 
@@ -940,7 +951,17 @@ AppConfig MainWindow::getUiConfig() {
     cfg.system_prompt = systemPromptEdit->toPlainText();
     cfg.pre_prompt = prePromptEdit->text();
     cfg.enable_glossary = chkGlossary->isChecked();
-    cfg.glossary_path = glossaryPathEdit->text();
+    
+    cfg.glossary_path = glossaryCombo->currentText();
+    
+    // 保存术语表历史记录 / Save glossary history
+    QStringList history;
+    for(int i = 0; i < glossaryCombo->count(); ++i) {
+        history << glossaryCombo->itemText(i);
+    }
+    cfg.glossary_history = history;
+
+    // 保存当前语言 / Save current language
     cfg.language = m_currentLang;
     
     return cfg;
@@ -966,8 +987,11 @@ void MainWindow::toggleControls(bool running) {
     
     // 设置术语表相关控件状态 / Set glossary related control states
     chkGlossary->setEnabled(!running);
-    glossaryPathEdit->setEnabled(!running);
+    glossaryCombo->setEnabled(!running);
     btnSelectGlossary->setEnabled(!running);
+    
+    // 设置自动翻译按钮状态 / Set auto translation button state
+    if(btnOpenAuto) btnOpenAuto->setEnabled(!running); 
     
     // 设置HUD按钮状态 / Set HUD button state
     hudBtn->setEnabled(running);
@@ -986,7 +1010,7 @@ void MainWindow::onStartClicked() {
     server->startServer();
     
     // 切换控件状态 / Toggle control states
-    toggleControls(true);
+    toggleControls(true); 
 }
 
 /**
@@ -998,7 +1022,7 @@ void MainWindow::onStopClicked() {
     server->stopServer();
     
     // 切换控件状态 / Toggle control states
-    toggleControls(false);
+    toggleControls(false); 
 }
 
 /**
@@ -1062,9 +1086,21 @@ void MainWindow::onLoadConfig() {
         systemPromptEdit->setText(cfg.system_prompt);
         prePromptEdit->setText(cfg.pre_prompt);
         chkGlossary->setChecked(cfg.enable_glossary);
-        glossaryPathEdit->setText(cfg.glossary_path);
         
-        // 添加日志消息 / Add log message
+        // 加载术语表历史记录 / Load glossary history
+        glossaryCombo->clear();
+        if (!cfg.glossary_history.isEmpty()) {
+            glossaryCombo->addItems(cfg.glossary_history);
+        }
+        
+        // 设置当前术语表路径 / Set current glossary path
+        if (!cfg.glossary_path.isEmpty()) {
+            int index = glossaryCombo->findText(cfg.glossary_path);
+            if (index != -1) glossaryCombo->setCurrentIndex(index);
+            else addToGlossaryHistory(cfg.glossary_path);
+        }
+        
+        // 添加加载成功日志 / Add load success log
         logArea->append(QString(LOG_CFG_LOADED[m_currentLang]) + fileName);
     }
 }
@@ -1172,6 +1208,7 @@ void MainWindow::onTestConfig() {
     // 构建测试请求URL / Build test request URL
     QString url = apiAddressCombo->currentText();
     
+    // 确保URL格式正确 / Ensure correct URL format
     if(url.endsWith("/")) url.chop(1);
     url += "/chat/completions";
     
@@ -1242,11 +1279,6 @@ void MainWindow::onClearContext() {
     // 清除所有对话上下文 / Clear all conversation contexts
     server->clearAllContexts();
 }
-
-// ==========================================
-// 🚀 HUD 模式逻辑实现
-// 🚀 HUD Mode Logic Implementation
-// ==========================================
 
 /**
  * 切换到HUD模式
