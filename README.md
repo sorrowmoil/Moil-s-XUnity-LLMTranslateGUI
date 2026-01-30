@@ -196,7 +196,7 @@ Endpoint=http://localhost:6800
 <summary><strong>🔮 未来增强计划</strong></summary>
 
 - [ ] 更多语言界面支持
-- [ ] 高级术语表管理界面
+- [x] ~~术语表管理界面~~ -**已完成**: C++版本已重构完成，支持**自动捕获**术语
 </details>
 
 ---

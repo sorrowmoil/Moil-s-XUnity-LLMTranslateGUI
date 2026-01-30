@@ -195,8 +195,8 @@ Endpoint=http://localhost:6800
 <summary><strong>🔮 Future Enhancements</strong></summary>
 
 - [ ] Additional language interface support
-- [ ] Advanced glossary management interface
--</details>
+- [x] ~~Advanced glossary management interface~~ - **Completed**: The C++ version has been refactored and now supports **automatic terminology capture**.
+</details>
 
 ---
 
