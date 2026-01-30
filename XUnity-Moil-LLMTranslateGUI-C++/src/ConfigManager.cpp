@@ -29,6 +29,10 @@ AppConfig ConfigManager::loadConfig(const QString& filename) {
     config.enable_glossary = settings.value("Settings/enable_glossary", config.enable_glossary).toBool();
     config.glossary_path = settings.value("Settings/glossary_path", config.glossary_path).toString();
     
+
+    // 📝 读取历史记录
+    config.glossary_history = settings.value("Settings/glossary_history").toStringList();
+    
     return config;
 }
 
@@ -57,6 +61,10 @@ void ConfigManager::saveConfig(const AppConfig& config, const QString& filename)
     // Save glossary-related settings
     settings.setValue("Settings/enable_glossary", config.enable_glossary);
     settings.setValue("Settings/glossary_path", config.glossary_path);
+    
+    // 📝 保存历史记录
+    settings.setValue("Settings/glossary_history", config.glossary_history);
+    
     
     // 强制将更改同步到磁盘（确保数据被写入）
     // Force synchronization of changes to disk (ensure data is written)
