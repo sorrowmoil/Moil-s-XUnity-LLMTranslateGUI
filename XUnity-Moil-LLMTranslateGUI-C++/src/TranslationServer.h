@@ -170,4 +170,13 @@ private:
     std::vector<QString> m_apiKeys; // API密钥列表 / API key list
     int m_currentKeyIndex = 0; // 当前使用的密钥索引 / Current key index
     std::mutex m_keyMutex; // 密钥访问互斥锁 / Key access mutex
+
+    // 🧊 冻结/解冻相关
+    QMap<QString, QString> m_xmlTagsMap;  // 存储 XML 标签的映射表
+    
+    // 🧊 冻结/解冻方法
+    QString freezeEscapes(const QString& input);
+    QString thawEscapes(const QString& input);
+    
+
 };
