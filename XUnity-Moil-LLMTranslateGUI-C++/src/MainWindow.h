@@ -14,7 +14,8 @@
 #include "TranslationServer.h"
 #include <QMenu>
 #include "TokenManager.h"
-#include "HudWindow.h" 
+#include "HudWindow.h"
+#include "LoadingOverlay.h" 
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -28,7 +29,7 @@ protected:
 
 private slots:
     // 基础按钮槽
-    void onStartClicked();
+    void onStartClicked(); // 这个槽函数现在将兼任“启动”和“重载”
     void onStopClicked();
     void onTestConfig();
     void onFetchModels();
@@ -73,6 +74,13 @@ private:
     bool m_isClosing = false;
     bool m_isDarkTheme = true;
     int m_currentLang = 0;
+    bool m_isServerRunning = false; // 追踪服务器状态
+
+    // 🛠️ 人性化错误信息映射函数
+    QString getFriendlyErrorMessage(int code, int lang);
+
+    // 🛠️ 加载覆盖层
+    LoadingOverlay *fetchLoadingOverlay = nullptr; 
 
     // UI 组件
     QComboBox *apiAddressCombo;
