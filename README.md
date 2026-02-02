@@ -10,204 +10,126 @@
 
 <div align="center">
 
-<img src="https://img.shields.io/badge/license-MIT-green" height="40">  
-<img src="https://img.shields.io/badge/python-3.9+-blue" height="40">  
-<img src="https://img.shields.io/badge/C++-17-orange" height="40">
+<img src="https://img.shields.io/badge/license-MIT-green" height="25">  
+<img src="https://img.shields.io/badge/Qt-6.x-blue" height="25">  
+<img src="https://img.shields.io/badge/C++-17-orange" height="25">
+<img src="https://img.shields.io/badge/Platform-Windows-lightgrey" height="25">
 
 </div>
-
 
 ---
 
 ## 🇨🇳 中文版本
 
 ### 简介
-**XUnity LLM Translator GUI** 是一个高性能的本地 HTTP 转发服务器，用于连接 **XUnity.AutoTranslator**（Unity 游戏自动翻译插件）与大语言模型（OpenAI, Gemini, Claude, DeepSeek 等）。
+**XUnity LLM Translator GUI** 是一款专为 Unity 游戏设计的翻译中转工具。它作为本地 HTTP 转发服务器，将 **XUnity.AutoTranslator** 的请求高效桥接至各类大语言模型（如 Grok, DeepSeek, OpenAI, Gemini 等）。
 
-- **源码**：Python 和 C++ 实现均在 `main` 分支提供  
-- **可执行文件**：编译好的 `.exe` 文件在 [Releases](../../releases) 提供  
-- **版本说明**：  
-  - **Fox** → 原始版本（动画流畅，UI稳定）  
-  - **Moil** → 增强版（支持多语言、术语表、主题切换等高级功能）  
+本项目现已全面迁移至 **C++ / Qt** 架构，旨在提供极低的响应延迟、极高的并发稳定性以及更现代化的交互体验。
 
 ---
 
-### 🔄 版本历史
+### ✨ C++ 版核心特性
 
-#### Python 版本
-- **Fox 版**：稳定基础实现，动画流畅  
-- **Moil 版**：功能增强，但 UI 有取舍  
+#### 🚀 卓越性能
+- **原生异步架构**：基于 C++17 与 Qt 事件循环，实现零阻塞的请求分发。
+- **并发线程管理**：内置高性能线程池（基于 `httplib`），支持多并发请求同时处理，大幅提升翻译吞吐量。
+- **API 密钥轮询**：支持填入多个以逗号分隔的 API Key，系统将自动进行负载均衡轮询。
 
-#### C++ 版本
-- **完全重构**：超低延迟、高并发的现代实现  
+#### 🧠 智能逻辑
+- **热重载 (Hot Reload)**：无需停止服务即可修改模型名称、API Key、系统提示词（System Prompt）或采样温度，配置实时生效。
+- **术语自进化系统 (RAG)**：支持对接 XUnity 术语表。模型在翻译时会自动参考现有术语，并能通过提示词工程**主动发现并提取**原文中的新名词进行自动补充。
+- **局部冻结技术**：内置文本预处理逻辑，自动保护游戏代码转义符、HTML 标签及特殊占位符（如 `ZMCZ`），防止其被模型误翻译。
 
----
-
-### ✨ 核心特性
-
-#### 🚀 通用功能
-- 高性能并发处理  
-- 多 API Key 轮询  
-- 现代化 UI + 实时日志  
-- 自动保存配置  
-
-#### 🎯 Moil Python 终极版
-- 🌍 中英双语界面  
-- 🎨 主题切换 (darkly/flatly)  
-- 📚 智能术语表，自动提取新词  
-- ⚡ 配置导入/导出  
-- 🔧 改进错误处理，多密钥支持  
-
-#### ⚡ C++ 版本
-- 原生性能，超低延迟  
-- 高级线程池并发  
-- 正则预处理/后处理支持  
-- RAG 上下文注入  
-- 智能采样算法  
+#### 🎨 现代化交互
+- **HUD 悬浮窗模式**：支持一键切换至简约 HUD 窗口。内置**三色状态呼吸灯**（绿色空闲/蓝色工作/红色错误）及实时 Token 计数器。
+- **人性化报错系统**：将晦涩的 HTTP 错误码（如 401, 429, 500）以及网络超时（999）转化为清晰的中文/英文操作建议。
+- **10秒超时检测**：针对 API 响应建立强制超时机制，防止因供应商服务器“假死”导致的游戏逻辑长时间死锁。
+- **多语言与主题**：完整的中英双语切换，支持一键切换暗色（Modern Dark）与亮色（Fusion Light）风格。
+- **智能地址预设**：内置主流 API 供应商（OpenAI, DeepSeek, xAI, 硅基流动等）及本地模型（Ollama, LM Studio）的端点预设。
 
 ---
 
-### ⚠️ 版本对比
+### ⚠️ 版本状态
 
-| 功能         | Moil Python | Fox Python | C++ |
-|--------------|-------------|------------|-----|
-| 多语言界面   | ✅          | ❌         | ✅  |
-| 主题切换     | ✅          | ❌         | ✅  |
-| 术语表系统   | ✅          | ❌         | ✅  |
-| 动画流畅度   | ⚠️ 稍差     | ✅ 流畅    | ✅  |
-| UI 布局      | ⚠️ 部分问题 | ✅ 稳定    | ✅  |
-| 性能表现     | 良好        | 良好       | 优秀 |
-| 部署复杂度   | 简单        | 简单       | 需编译 |
+| 特性 | C++ 增强版 (Moil) | Python 原始版 (Fox) |
+| :--- | :---: | :---: |
+| 响应延迟 | **极低 (Native)** | 一般 (Interpreter) |
+| 热重载支持 | ✅ 完备 | ❌ 需重启 |
+| 术语自进化 | ✅ 智能提取 | ❌ 仅读取 |
+| 错误处理 | ✅ 人性化映射 | ⚠️ 基础报错 |
+| HUD 呼吸灯 | ✅ 内置 | ❌ 无 |
+| UI 稳定性 | ✅ 高 (Qt 原生) | ⚠️ 易偏移 |
 
 ---
 
 ### 🚀 快速开始
 
-#### 方式一：直接运行可执行文件（推荐）
-1. 从 [Releases](../../releases) 下载最新 `.exe`  
-2. 双击运行  
-3. 填写 API 地址、密钥和端口，点击 **启动服务**
-
-#### 方式二：源码运行（开发者）
-```bash
-pip install ttkbootstrap openai requests
-python XUnity-Moil的LLMTranslateGUI.py
-```
+1. **获取程序**：从 [Releases](../../releases) 下载最新的 `.exe` 编译版本。
+2. **配置地址**：在地址栏选择预设的供应商或手动输入 API 地址（需兼容 OpenAI 格式）。
+3. **连通性测试**：点击 **测试配置**。系统将验证所有 Key 的有效性并在日志中输出详细汇总。
+4. **启动服务**：点击 **启动服务**。
+5. **配置插件**：编辑游戏目录下的 `AutoTranslator/Config.ini`：
+   ```ini
+   [Service]
+   Endpoint=http://localhost:6800
+   ```
 
 ---
 
-### 🧩 文件结构
+### 📂 文件结构 (C++ 核心)
 
-#### C++ 版本 (`src/`)
 ```text
 src/
-├── ConfigManager.cpp / .h         # 配置管理
-├── GlossaryManager.h              # 术语表管理
-├── htestlib.h                     # 工具头文件
-├── json.hpp                       # JSON 解析器（nlohmann/json）
-├── main.cpp                       # 程序入口
-├── MainWindow.cpp / .h           # GUI 逻辑
-├── RegexManager.cpp / .h         # 正则预处理/后处理
-├── translate.ico                  # 应用图标
-├── TranslationServer.h           # HTTP 服务器接口
-├── HudWindow.cpp/h               # HUD呼吸灯模块
-```
-
-#### Python 版本 (`Python/`)
-```text
-Python/
-├── XUnity-Moli@LLMTtranslatedGUI.py   # 主 GUI 脚本（Moil 版本）
-├── moli.ico                           # 应用图标
+├── TranslationServer.cpp/h     # 核心 HTTP 服务器与转发逻辑
+├── MainWindow.cpp/h           # 主界面逻辑与人性化报错处理
+├── HudWindow.cpp/h            # HUD 悬浮窗与呼吸灯模块
+├── LoadingOverlay.h           # 按钮异步加载动画组件
+├── GlossaryManager.h          # 术语提取与 RAG 注入逻辑
+├── ConfigManager.cpp/h        # 结构化配置持久化管理
+├── TokenManager.cpp/h         # Token 消耗统计与追踪
+└── main.cpp                   # 应用入口与全局风格初始化
 ```
 
 ---
 
-### 🛠️ 使用方法
-
-#### 配置 XUnity.AutoTranslator
-编辑 `AutoTranslator/Config.ini`：
-```ini
-[Service]
-Endpoint=http://localhost:6800
-```
-
-#### 术语表功能（Moil 和 C++ 版本）
-- 启用 **自进化** 选项  
-- 选择 `_Substitutions.txt` 文件  
-- 工具会参考现有术语并自动学习新词  
-
----
-
-### ⚙️ 编译指南（开发者）
+### 🛠️ 编译与开发指南
 
 #### C++ 版本
-- 环境要求：CMake 3.16+, Qt 6.x, C++17 编译器（MSVC/MinGW）  
-- 构建命令：
+- **环境要求**：支持 C++17 的编译器 (MSVC 2019+, MinGW 8.1+), Qt 6.2.0+, CMake 3.16+。
+- **构建步骤**:
   ```bash
   mkdir build && cd build
-  cmake ..
+  cmake .. -DCMAKE_PREFIX_PATH=/your/qt/path
   cmake --build . --config Release
   ```
-  > 💡 对于 Visual Studio 等多配置生成器，需要 `--config Release` 来构建优化版本。在 Linux/macOS 上通常不需要此标志。
 
-#### Python 版本
-- **Moil**：推荐使用（功能丰富）  
-- **Fox**：备选方案（动画流畅，布局稳定）  
-- 通过 pip 安装依赖，无需编译  
+#### Python 版本 (历史参考)
+- **依赖安装**: `pip install ttkbootstrap openai requests`
+- **直接运行**: `python XUnity-Moli@LLMTtranslatedGUI.py`
 
 ---
 
-### 🎯 开发路线图 & 待办事项
+### 📦 部署与打包
 
-<details>
-<summary><strong>🚀 性能优化</strong></summary>
+- **C++ 打包**: 编译后建议使用 `windeployqt` 收集运行时依赖库。随后可使用 **Enigma Virtual Box** 封装为单文件。
+- **Python 打包**: 建议使用 `PyInstaller --onefile --windowed` 模式进行封装。
 
-- [x] ~~优化翻译速度~~ - **Moil版已完成**: 多线程HTTP服务器，上下文缓存，API密钥轮询
-- [x] ~~加入并发支持~~ - **Moil版已完成**: ThreadingHTTPServer + 线程池支持
-</details>
+---
 
-<details>
-<summary><strong>🌐 语言支持</strong></summary>
+### 🎯 开发进度 (Roadmap)
 
-- [x] ~~加入对英语的支持~~ - **Moil版已完成**: 完整的中英双语界面，实时语言切换
-</details>
-
-<details>
-<summary><strong>🛠️ 代码重构</strong></summary>
-
-- [x] ~~使用其他语言重构~~ - **已完成**: C++版本已重构完成，提供更高性能
-- [ ] 进一步代码优化和模块化
-</details>
-
-<details>
-<summary><strong>✨ Moil版本新增功能</strong></summary>
-
-- [x] **多语言界面**: 完整的中英文双语支持
-- [x] **主题系统**: 亮色/暗色主题切换
-- [x] **智能术语表**: 自进化术语管理系统
-- [x] **增强配置管理**: 配置导入导出功能
-- [x] **工具提示系统**: 详细的控件功能说明
-- [x] **平滑动画**: 淡入淡出效果
-- [x] **上下文菜单**: 日志区域右键功能
-- [x] **多API密钥支持**: 自动轮询多个密钥
-</details>
-
-<details>
-<summary><strong>🔮 未来增强计划</strong></summary>
-
-- [ ] 更多语言界面支持
-- [x] ~~术语表管理界面~~ -**已完成**: C++版本已重构完成，支持**自动捕获**术语
-</details>
+- [x] **高性能转发引擎**：C++ 原生重构完成。
+- [x] **配置热重载**：实现不停机动态参数调节。
+- [x] **智能报错系统**：10s 强制超时与 HTTP 状态码汉化。
+- [x] **自进化术语捕获**：翻译过程中自动学习新词汇。
+- [x] **HUD 极简模式**：三色呼吸灯状态监测。
+- [ ] **多端点自动分流**：针对不同负载自动分配请求。
 
 ---
 
 ### 📝 许可证
-MIT 许可证。可自由 fork 和修改。
-
-### 💡 打包说明
-- Python：**PyInstaller**  
-- C++：**Enigma Virtual Box** / **windeployqt**
+本项目基于 **MIT** 许可证开源。
 
 ---
 
-> 📖 **English version available**: [README_US.md](README_US.md)
+> 📖 **Looking for the English version?** Check [README_US.md](README_US.md)
