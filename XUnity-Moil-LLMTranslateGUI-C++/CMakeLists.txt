@@ -70,6 +70,7 @@ add_executable(XUnityTranslatorCPP
     src/RegexManager.h
     src/HudWindow.h src/HudWindow.cpp
     src/TokenManager.h src/TokenManager.cpp
+    src/LoadingOverlay.h
     logo.rc
 )
 
