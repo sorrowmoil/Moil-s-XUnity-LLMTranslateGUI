@@ -96,6 +96,9 @@ private:
     
     QCheckBox *chkGlossary;       
     QComboBox *glossaryCombo;  
+
+    // ✅ 新增：锁定系统提示词的复选框
+    QCheckBox *chkLockSysPrompt; 
     
     QPushButton *btnSelectGlossary; 
     // 📝 新增：编辑按钮
