@@ -69,9 +69,16 @@
 3. **连通性测试**：点击 **测试配置**。系统将验证所有 Key 的有效性并在日志中输出详细汇总。
 4. **启动服务**：点击 **启动服务**。
 5. **配置插件**：编辑游戏目录下的 `AutoTranslator/Config.ini`：
-   ```ini
+  ```ini
    [Service]
-   Endpoint=http://localhost:6800
+   Endpoint=CustomTranslate
+   FallbackEndpoint=
+   ...
+   [Custom]
+   Url=http://localhost:6800
+   EnableShortDelay=true
+   DisableSpamChecks=true
+   
    ```
 
 ---
