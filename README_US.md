@@ -69,9 +69,16 @@ The project has fully migrated to a **C++ / Qt** architecture, providing ultra-l
 3. **Connectivity Test**: Click **Test Config**. The system validates all keys and outputs a detailed summary in the logs.
 4. **Start Service**: Click **Start Service**.
 5. **Setup Plugin**: Edit `AutoTranslator/Config.ini` in your game folder:
-   ```ini
+     ```ini
    [Service]
-   Endpoint=http://localhost:6800
+   Endpoint=CustomTranslate
+   FallbackEndpoint=
+   ...
+   [Custom]
+   Url=http://localhost:6800
+   EnableShortDelay=true
+   DisableSpamChecks=true
+   
    ```
 
 ---
