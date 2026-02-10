@@ -14,9 +14,9 @@ using json = nlohmann::json;
 
 // ==========================================
 // 📝 Server Log Dictionary / 服务器日志字典
-// 📝 服务器启动日志 / Server start log
 // ==========================================
 
+// 服务器启动日志 / Server start log
 const char* SV_LOG_START[] = { "Server started. Port: %1, Threads: %2", "服务已启动，端口：%1，并发线程数：%2" };
 // 服务器停止日志 / Server stop log
 const char* SV_LOG_STOP[] = { "Server stopped", "服务已停止" };
