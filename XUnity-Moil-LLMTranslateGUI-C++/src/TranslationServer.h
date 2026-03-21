@@ -12,6 +12,7 @@
 #include "ConfigManager.h"
 #include "httplib.h"
 
+
 /**
  * 上下文结构体，用于存储对话历史
  * Context struct, used to store conversation history
@@ -31,6 +32,13 @@ class TranslationServer : public QObject {
     Q_OBJECT
     
 public:
+
+    // 依然保留这个便捷函数，内部会触发 logMessage 信号
+    // 构造函数中的 connect 会将其路由到 LogManager
+    void injectLog(const QString& msg) {
+        emit logMessage(msg);
+    }
+
     explicit TranslationServer(QObject *parent = nullptr);
     ~TranslationServer();
     
@@ -67,6 +75,13 @@ public:
      */
     bool isRunning() const { return m_running; }
 
+    // 🔥 已删除：getLogHistory() - 现在由 LogManager 接管
+    // QStringList getLogHistory(); 
+
+private slots:
+    // 🔥 已删除：saveLogToHistory(QString msg) - 现在由 LogManager 接管
+    // void saveLogToHistory(QString msg);
+
 signals:
     /**
      * 日志消息信号 / Log message signal
@@ -91,6 +106,11 @@ signals:
      * @param success 是否成功 / Whether successful
      */
     void workFinished(bool success);
+
+
+    // 🔥 新增：状态变更信号，通知所有 GUI 更新界面
+    void serverStarted();
+    void serverStopped();
 
 private:
     /**
@@ -118,6 +138,8 @@ private:
      * @return 客户端ID / Client ID
      */
     QString generateClientId(const std::string& ip);
+
+    QString m_hijackedIniPath; // 🔥 新增：记忆当前被劫持的配置文件路径
     
     /**
      * 执行单次翻译尝试 / Perform single translation attempt
@@ -169,4 +191,8 @@ private:
     
     // 配置互斥锁 / Configuration mutex
     std::mutex m_configMutex;
+
+    // 🔥 已删除：m_logHistory 和 m_logHistoryMutex - 现在由 LogManager 接管
+    // std::deque<QString> m_logHistory; 
+    // std::mutex m_logHistoryMutex;     
 };
