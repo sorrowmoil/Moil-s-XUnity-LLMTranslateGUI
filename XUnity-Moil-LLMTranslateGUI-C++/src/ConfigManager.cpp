@@ -1,122 +1,111 @@
 #include "ConfigManager.h"
 
 /**
- * 加载配置文件 / Load configuration file
+ * Load configuration from an INI file.
+ * 从INI文件加载配置。
  * 
- * 从指定的INI格式配置文件中读取应用程序设置，并返回配置对象。
- * Reads application settings from the specified INI format configuration file and returns a configuration object.
- * 
- * @param filename 配置文件名（可选，默认为"config.ini"） / Configuration file name (optional, defaults to "config.ini")
- * @return 包含所有配置参数的AppConfig对象 / AppConfig object containing all configuration parameters
+ * @param filename Path to the INI file ; INI文件路径
+ * @return AppConfig structure populated with values from the file ; 填充了文件值的AppConfig结构体
  */
-AppConfig ConfigManager::loadConfig(const QString& filename) {
-    // 创建QSettings对象，使用INI格式 / Create QSettings object with INI format
+AppConfig ConfigManager::loadConfig(const QString &filename)
+{
     QSettings settings(filename, QSettings::IniFormat);
-    
-    // 创建默认配置对象 / Create default configuration object
     AppConfig config;
 
-    // API配置参数 / API Configuration Parameters
-    // 读取API地址，如果不存在则使用默认值 / Read API address, use default if not exists
+    // Read basic settings with default values ; 读取基本设置并提供默认值
     config.api_address = settings.value("Settings/api_address", config.api_address).toString();
-    
-    // 读取API密钥，如果不存在则使用默认值 / Read API key, use default if not exists
     config.api_key = settings.value("Settings/api_key", config.api_key).toString();
-    
-    // 读取模型名称，如果不存在则使用默认值 / Read model name, use default if not exists
     config.model_name = settings.value("Settings/model_name", config.model_name).toString();
-    
-    // 读取端口号，如果不存在则使用默认值 / Read port number, use default if not exists
     config.port = settings.value("Settings/port", config.port).toInt();
-    
-    // 读取系统提示词，如果不存在则使用默认值 / Read system prompt, use default if not exists
     config.system_prompt = settings.value("Settings/system_prompt", config.system_prompt).toString();
-    
-    // 读取前置文本，如果不存在则使用默认值 / Read pre-prompt, use default if not exists
     config.pre_prompt = settings.value("Settings/pre_prompt", config.pre_prompt).toString();
-    
-    // 读取上下文数量，如果不存在则使用默认值 / Read context number, use default if not exists
     config.context_num = settings.value("Settings/context_num", config.context_num).toInt();
-    
-    // 读取温度参数，如果不存在则使用默认值 / Read temperature parameter, use default if not exists
     config.temperature = settings.value("Settings/temperature", config.temperature).toDouble();
-    
-    // 读取最大线程数，如果不存在则使用默认值 / Read max threads, use default if not exists
     config.max_threads = settings.value("Settings/max_threads", config.max_threads).toInt();
-    
-    // 读取界面语言设置，如果不存在则使用默认值 / Read UI language setting, use default if not exists
     config.language = settings.value("Settings/language", config.language).toInt();
-    
-    // --- 术语表相关设置 --- / --- Glossary Related Settings ---
-    
-    // 读取是否启用术语表，如果不存在则使用默认值 / Read whether to enable glossary, use default if not exists
+
+    // Glossary related settings ; 术语表相关设置
     config.enable_glossary = settings.value("Settings/enable_glossary", config.enable_glossary).toBool();
-    
-    // 读取术语表文件路径，如果不存在则使用默认值 / Read glossary file path, use default if not exists
     config.glossary_path = settings.value("Settings/glossary_path", config.glossary_path).toString();
-    
-    // 读取术语表历史记录（字符串列表），如果不存在则返回空列表 / Read glossary history (string list), return empty list if not exists
     config.glossary_history = settings.value("Settings/glossary_history").toStringList();
-    
-    // 返回完整的配置对象 / Return complete configuration object
+
+    // Lock states for system prompt and glossary ; 系统提示和术语表的锁定状态
+    config.lock_system_prompt = settings.value("Settings/lock_system_prompt", false).toBool();
+    config.lock_glossary = settings.value("Settings/lock_glossary", false).toBool();
+
+    // UI settings (newly added) ; UI设置（新增）
+    // If the INI file does not contain these keys, default values are used: 0 for ui_mode, true for is_dark.
+    // 如果INI文件中没有这些键，则使用默认值：ui_mode默认为0，is_dark默认为true。
+    config.ui_mode = settings.value("UI/ui_mode", 0).toInt();
+    config.is_dark = settings.value("UI/is_dark", true).toBool();
+
+    config.modern_opacity = settings.value("UI/modern_opacity", 210).toInt();
+    config.is_rounded = settings.value("UI/is_rounded", true).toBool(); // Read rounded corner state ; 读取圆角状态
+
+    // Debug and batch processing flags ; 调试和批处理标志
+    config.enable_debug_mode = settings.value("Settings/enable_debug_mode", false).toBool();
+    config.enable_batch = settings.value("Settings/enable_batch", false).toBool(); // Default off ; 默认关闭
+
     return config;
 }
 
 /**
- * 保存配置文件 / Save configuration file
+ * Save configuration to an INI file.
+ * 将配置保存到INI文件。
  * 
- * 将应用程序配置保存到指定的INI格式配置文件中。
- * Saves application configuration to the specified INI format configuration file.
- * 
- * @param config 包含要保存的配置参数的AppConfig对象 / AppConfig object containing configuration parameters to save
- * @param filename 配置文件名（可选，默认为"config.ini"） / Configuration file name (optional, defaults to "config.ini")
+ * @param config The configuration to save ; 要保存的配置
+ * @param filename Path to the INI file ; INI文件路径
  */
-void ConfigManager::saveConfig(const AppConfig& config, const QString& filename) {
-    // 创建QSettings对象，使用INI格式 / Create QSettings object with INI format
+void ConfigManager::saveConfig(const AppConfig &config, const QString &filename)
+{
     QSettings settings(filename, QSettings::IniFormat);
 
-    // API配置参数 / API Configuration Parameters
-    // 保存API地址到配置文件 / Save API address to configuration file
+    // Write basic settings ; 写入基本设置
     settings.setValue("Settings/api_address", config.api_address);
-    
-    // 保存API密钥到配置文件 / Save API key to configuration file
     settings.setValue("Settings/api_key", config.api_key);
-    
-    // 保存模型名称到配置文件 / Save model name to configuration file
     settings.setValue("Settings/model_name", config.model_name);
-    
-    // 保存端口号到配置文件 / Save port number to configuration file
     settings.setValue("Settings/port", config.port);
-    
-    // 保存系统提示词到配置文件 / Save system prompt to configuration file
     settings.setValue("Settings/system_prompt", config.system_prompt);
-    
-    // 保存前置文本到配置文件 / Save pre-prompt to configuration file
     settings.setValue("Settings/pre_prompt", config.pre_prompt);
-    
-    // 保存上下文数量到配置文件 / Save context number to configuration file
     settings.setValue("Settings/context_num", config.context_num);
-    
-    // 保存温度参数到配置文件 / Save temperature parameter to configuration file
     settings.setValue("Settings/temperature", config.temperature);
-    
-    // 保存最大线程数到配置文件 / Save max threads to configuration file
     settings.setValue("Settings/max_threads", config.max_threads);
-    
-    // 保存界面语言设置到配置文件 / Save UI language setting to configuration file
     settings.setValue("Settings/language", config.language);
-    
-    // --- 术语表相关设置 --- / --- Glossary Related Settings ---
-    
-    // 保存是否启用术语表到配置文件 / Save whether to enable glossary to configuration file
+
+    // Glossary related settings ; 术语表相关设置
     settings.setValue("Settings/enable_glossary", config.enable_glossary);
-    
-    // 保存术语表文件路径到配置文件 / Save glossary file path to configuration file
     settings.setValue("Settings/glossary_path", config.glossary_path);
-    
-    // 保存术语表历史记录（字符串列表）到配置文件 / Save glossary history (string list) to configuration file
     settings.setValue("Settings/glossary_history", config.glossary_history);
+
+    // Save lock states ; 保存锁定状态
+    settings.setValue("Settings/lock_system_prompt", config.lock_system_prompt);
+    settings.setValue("Settings/lock_glossary", config.lock_glossary);
+
+    // ============================================================
+    // UI settings handling: common and mode-specific values
+    // UI设置处理：通用值和模式特定值
+    // ============================================================
+
+    // UI mode is always saved (common to both classic and modern modes) ; UI模式总是保存（经典和流光模式通用）
+    settings.setValue("UI/ui_mode", config.ui_mode);
+
+    // is_dark is shared by both classic and modern modes, always save it.
+    // is_dark 是两种模式共用的属性，始终保存。
+    settings.setValue("UI/is_dark", config.is_dark);
+
+    // Save modern-mode specific UI settings only if the config originates from modern mode.
+    // This preserves the default values for classic mode when saving from classic mode.
+    // 只有当配置来自流光模式时，才保存流光模式专属的UI设置。
+    // 这样从经典模式保存时，不会覆盖经典模式的默认值。
+    if (config.is_from_modern)
+    {
+        settings.setValue("UI/is_rounded", config.is_rounded);
+        settings.setValue("UI/modern_opacity", config.modern_opacity);
+    }
+
+    // Debug and batch flags ; 调试和批处理标志
+    settings.setValue("Settings/enable_debug_mode", config.enable_debug_mode);
+    settings.setValue("Settings/enable_batch", config.enable_batch);
     
-    // 确保所有设置立即写入磁盘 / Ensure all settings are immediately written to disk
     settings.sync();
 }
