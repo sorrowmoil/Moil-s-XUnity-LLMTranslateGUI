@@ -19,7 +19,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # 您必须修改此路径以匹配您本地的 Qt 安装位置。
 # 请确保使用正斜杠 '/'，不要使用反斜杠 '\'。
 # ==============================================================================
-set(CMAKE_PREFIX_PATH "C:/Qt/6.10.1/mingw_64")
+set(CMAKE_PREFIX_PATH "C:/Qt/6.10.2/mingw_64")
 
 # ==============================================================================
 # C++ Standard & Qt Build Tools
@@ -71,6 +71,9 @@ add_executable(XUnityTranslatorCPP
     src/HudWindow.h src/HudWindow.cpp
     src/TokenManager.h src/TokenManager.cpp
     src/LoadingOverlay.h
+    src/ModernWindow.h src/ModernWindow.cpp
+    src/LogManager.h   src/ModernUI.h
+    src/XuaConfigHijacker.h
     logo.rc
 )
 
