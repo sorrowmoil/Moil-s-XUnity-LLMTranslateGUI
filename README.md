@@ -19,124 +19,185 @@
 
 ---
 
-## 🇨🇳 中文版本
+## 📖 简介
 
-### 简介
-**XUnity LLM Translator GUI** 是一款专为 Unity 游戏设计的翻译中转工具。它作为本地 HTTP 转发服务器，将 **XUnity.AutoTranslator** 的请求高效桥接至各类大语言模型（如 Grok, DeepSeek, OpenAI, Gemini 等）。
+**XUnity LLM Translator GUI** 是一款专为 Unity 游戏设计的本地翻译中转工具。它作为一个轻量级的本地 HTTP 转发服务器，用于将 **XUnity.AutoTranslator** 的请求桥接至各类大语言模型（如 Grok、DeepSeek、OpenAI、Gemini、Ollama 等）。
 
-本项目现已全面迁移至 **C++ / Qt** 架构，旨在提供极低的响应延迟、极高的并发稳定性以及更现代化的交互体验。
-
----
-
-### ✨ C++ 版核心特性
-
-#### 🚀 卓越性能
-- **原生异步架构**：基于 C++17 与 Qt 事件循环，实现零阻塞的请求分发。
-- **并发线程管理**：内置高性能线程池（基于 `httplib`），支持多并发请求同时处理，大幅提升翻译吞吐量。
-- **API 密钥轮询**：支持填入多个以逗号分隔的 API Key，系统将自动进行负载均衡轮询。
-
-#### 🧠 智能逻辑
-- **热重载 (Hot Reload)**：无需停止服务即可修改模型名称、API Key、系统提示词（System Prompt）或采样温度，配置实时生效。
-- **术语自进化系统 (RAG)**：支持对接 XUnity 术语表。模型在翻译时会自动参考现有术语，并能通过提示词工程**主动发现并提取**原文中的新名词进行自动补充。
-- **局部冻结技术**：内置文本预处理逻辑，自动保护游戏代码转义符、HTML 标签及特殊占位符（如 `ZMCZ`），防止其被模型误翻译。
-
-#### 🎨 现代化交互
-- **HUD 悬浮窗模式**：支持一键切换至简约 HUD 窗口。内置**三色状态呼吸灯**（绿色空闲/蓝色工作/红色错误）及实时 Token 计数器。
-- **人性化报错系统**：将晦涩的 HTTP 错误码（如 401, 429, 500）以及网络超时（999）转化为清晰的中文/英文操作建议。
-- **10秒超时检测**：针对 API 响应建立强制超时机制，防止因供应商服务器“假死”导致的游戏逻辑长时间死锁。
-- **多语言与主题**：完整的中英双语切换，支持一键切换暗色（Modern Dark）与亮色（Fusion Light）风格。
-- **智能地址预设**：内置主流 API 供应商（OpenAI, DeepSeek, xAI, 硅基流动等）及本地模型（Ollama, LM Studio）的端点预设。
+项目基于 **C++17 / Qt** 编写，旨在在保证**低延迟**与**高并发处理能力**的同时，提供一个稳定、直观的可视化配置管理界面。
 
 ---
 
-### ⚠️ 版本状态
+## 🖼️ 界面预览
 
-| 特性 | C++ 增强版 (Moil) | Python 原始版 (Fox) |
-| :--- | :---: | :---: |
-| 响应延迟 | **极低 (Native)** | 一般 (Interpreter) |
-| 热重载支持 | ✅ 完备 | ❌ 需重启 |
-| 术语自进化 | ✅ 智能提取 | ❌ 仅读取 |
-| 错误处理 | ✅ 人性化映射 | ⚠️ 基础报错 |
-| HUD 呼吸灯 | ✅ 内置 | ❌ 无 |
-| UI 稳定性 | ✅ 高 (Qt 原生) | ⚠️ 易偏移 |
+### Classic 模式（新旧对比）
+
+| 早期版本 | 当前版本 |
+| :--: | :--: |
+| <img src="docs/ui_classic_old.png"> | <img src="docs/ui_classic_new.png"> |
+
+<p align="center">
+<em>固定像素布局 · 术语表侧滑窗口 · 新增功能按钮</em>
+</p>
 
 ---
 
-### 🚀 快速开始
+### Modern 流光模式
 
-1. **获取程序**：从 [Releases](../../releases) 下载最新的 `.exe` 编译版本。
-2. **配置地址**：在地址栏选择预设的供应商或手动输入 API 地址（需兼容 OpenAI 格式）。
-3. **连通性测试**：点击 **测试配置**。系统将验证所有 Key 的有效性并在日志中输出详细汇总。
-4. **启动服务**：点击 **启动服务**。
-5. **配置插件**：编辑游戏目录下的 `AutoTranslator/Config.ini`：
-  ```ini
+<p align="center">
+<img src="docs/ui_modern.png">
+</p>
+
+<p align="center">
+<em>Glassmorphism UI · 动态渐变描边 · 侧滑术语表 · 实时透明度调节</em>
+</p>
+
+---
+
+## 🔄 与早期 C++ 版本对比
+
+| 功能维度        | 早期 C++ 版本 |             当前版本             |
+| :---------- | :-------: | :--------------------------: |
+| UI 架构       |   单一主窗口   | **双模式 UI（Classic / Modern）** |
+| 界面风格        |    固定主题   |  **经典 + 流光 (Glassmorphism)** |
+| 内置术语编辑      |    ❌ 无    |        **✅ 内置侧滑术语编辑器**       |
+| 多行打包翻译      |   ❌ 仅逐行   |      **✅ Batch 模式并发打包**      |
+| Config 自动接管 |   ❌ 手动配置  | **✅ 一定程度自动化且自动备份** |
+| 上下文污染防护     |   基础占位保护  |    **✅ Anti-Bleed 多行隔离机制**   |
+| 术语系统        |  RAG 自动补充 |        **RAG + 可视化编辑**       |
+| UI 动画系统     |   基础 Qt   |     **Modern 动效 + 毛玻璃渲染**    |
+| HUD 状态窗     |    ✅ 支持   |        ✅ 支持 + Token 统计       |
+| API Key 轮询  |     ✅     |               ✅              |
+| 热重载         |     ✅     |               ✅              |
+| 并发线程池       |   未仔细定义  |        **64~256**        |
+| 错误提示        |    基础映射   |       **更完整 HTTP 错误提示**      |
+
+---
+
+## 🛠️ 核心功能
+
+### 🎨 双模式界面
+
+* **Classic 模式**：轻量稳定，适合较老设备，资源占用更低。
+* **Modern 流光模式**：采用 Glassmorphism 毛玻璃设计，支持动态渐变描边、实时透明度调节，视觉体验更现代。
+* **内置术语编辑器**：侧滑窗口设计，支持原文/译文的语法高亮，方便快速维护术语表。
+
+---
+
+### 🧠 翻译逻辑处理
+
+* **多行打包路由 (Batch Mode)**
+  自动接管 `Config.ini` 实现并发打包翻译，大幅提升文本密集型游戏的翻译吞吐量。
+  退出程序时自动恢复原始配置，无需手动干预。
+
+* **防上下文污染 (Anti-Bleed)**
+  在请求发送前自动保护 `[LF]` 与 `<T_0>` 等游戏内特殊标记，并通过提示词要求模型将每行文本视为独立片段，有效避免模型“脑补”上下文导致的逻辑混乱。
+
+* **术语自进化 (RAG)**
+  翻译时自动读取术语表作为上下文参考，并根据模型返回结果智能提取未收录的新名词，补充到术语文件中，实现术语库的持续进化。
+
+---
+
+### 🚀 并发与服务控制
+
+* **异步线程池**：基于 `httplib` 实现高性能线程池，支持 64~256 并发请求，满足高负载场景。
+* **API Key 自动轮询**：支持填写多个以逗号分隔的 API Key，系统自动负载均衡，避免单一 Key 触发限流。
+* **动态热重载**：运行中修改模型名称、API Key、系统提示词或采样温度等配置，下一次请求即自动生效，无需中断服务。
+
+---
+
+### 🛡️ 状态监测与容错
+
+* **HUD 悬浮窗**：可切换至迷你状态窗，通过三色呼吸灯（绿/青/红）直观显示当前工作状态，并实时统计 Token 消耗。
+* **人性化错误映射**：将常见的 HTTP 状态码（401、429、500 等）及网络超时转化为清晰的中文操作建议，帮助用户快速定位问题。
+* **强制超时保护**：内置 10~40 秒的超时机制，防止因 API 响应缓慢导致游戏逻辑长时间卡死。
+
+---
+
+## 🚀 快速开始
+
+### 标准模式（逐行处理）
+
+1. 启动程序，填写 API Key 和模型信息。
+2. 点击 **测试配置** 验证连通性。
+3. 测试通过后点击 **启动服务**。
+4. 手动编辑游戏目录下的 `AutoTranslator/Config.ini`：
+   ```ini
    [Service]
    Endpoint=CustomTranslate
-   FallbackEndpoint=
-   ...
-   [Custom]
-   Url=http://localhost:6800
-   EnableShortDelay=true
-   DisableSpamChecks=true
    
+   [Custom]
+   Url=http://localhost:6800   # 端口需与 GUI 中设置保持一致
    ```
 
 ---
 
-### 📂 文件结构 (C++ 核心)
+### 📦 打包模式（多行并发，推荐用于文本密集型游戏）
+
+1. 在主界面勾选 **📦 多行模式 (Batching)**。
+2. 确保已正确选择术语表（`.txt`）路径，程序将依赖此路径自动定位游戏的 `Config.ini`。
+3. 点击 **启动服务**（程序将自动修改并接管游戏配置）。
+4. 启动游戏。翻译过程中将自动应用打包模式，**自动备份当前配置文件**。
+
+---
+
+## 📂 代码结构
 
 ```text
 src/
-├── TranslationServer.cpp/h     # 核心 HTTP 服务器与转发逻辑
-├── MainWindow.cpp/h           # 主界面逻辑与人性化报错处理
-├── HudWindow.cpp/h            # HUD 悬浮窗与呼吸灯模块
-├── LoadingOverlay.h           # 按钮异步加载动画组件
-├── GlossaryManager.h          # 术语提取与 RAG 注入逻辑
-├── ConfigManager.cpp/h        # 结构化配置持久化管理
-├── TokenManager.cpp/h         # Token 消耗统计与追踪
-└── main.cpp                   # 应用入口与全局风格初始化
+├── main.cpp                     # 应用入口，UI 模式切换与过渡动画
+├── MainWindow.cpp/h             # Classic 模式主界面及业务逻辑
+├── ModernWindow.cpp/h           # Modern 模式主界面
+├── TranslationServer.cpp/h      # HTTP 服务器、API 交互与重试逻辑
+├── XuaConfigHijacker.h          # 游戏配置自动修改与还原组件
+├── GlossaryManager.h            # 术语表读写与 RAG 注入逻辑
+├── RegexManager.h               # 文本预处理与后处理正则
+├── HudWindow.cpp/h              # HUD 悬浮状态窗
+├── ModernUI.h                   # 流光模式组件库（内置编辑器、渲染代理）
+├── ConfigManager.cpp/h          # 配置文件（config.ini）序列化读写
+└── TokenManager.cpp/h           # Token 统计与管理
 ```
 
 ---
 
-### 🛠️ 编译与开发指南
+## 🛠️ 编译指南
 
-#### C++ 版本
-- **环境要求**：支持 C++17 的编译器 (MSVC 2019+, MinGW 8.1+), Qt 6.2.0+, CMake 3.16+。
-- **构建步骤**:
-  ```bash
-  mkdir build && cd build
-  cmake .. -DCMAKE_PREFIX_PATH=/your/qt/path
-  cmake --build . --config Release
-  ```
+### 环境要求
+- 支持 C++17 的编译器（MSVC 2019+、MinGW 8.1+、Clang 11+）
+- Qt 6.2.0 或更高版本（包含 Qt Network、Qt Widgets 等模块）
+- CMake 3.16 或更高版本
 
-#### Python 版本 (历史参考)
-- **依赖安装**: `pip install ttkbootstrap openai requests`
-- **直接运行**: `python XUnity-Moli@LLMTtranslatedGUI.py`
+### 构建步骤
+```bash
+git clone https://github.com/your-repo/XUnity-LLM-Translator-GUI.git
+cd XUnity-LLM-Translator-GUI
+mkdir build && cd build
+cmake .. -DCMAKE_PREFIX_PATH=C:/Qt/6.5.0/msvc2019_64   # 替换为你的 Qt 路径
+cmake --build . --config Release
+```
 
----
-
-### 📦 部署与打包
-
-- **C++ 打包**: 编译后建议使用 `windeployqt` 收集运行时依赖库。随后可使用 **Enigma Virtual Box** 封装为单文件。
-- **Python 打包**: 建议使用 `PyInstaller --onefile --windowed` 模式进行封装。
+### 注意事项
+- 若使用 MinGW，请确保 `CMAKE_PREFIX_PATH` 指向正确的 Qt 安装目录。
+- 编译后的可执行文件位于 `build/Release/` 目录下。
 
 ---
 
-### 🎯 开发进度 (Roadmap)
+## 📦 部署与打包
 
-- [x] **高性能转发引擎**：C++ 原生重构完成。
-- [x] **配置热重载**：实现不停机动态参数调节。
-- [x] **智能报错系统**：10s 强制超时与 HTTP 状态码汉化。
-- [x] **自进化术语捕获**：翻译过程中自动学习新词汇。
-- [x] **HUD 极简模式**：三色呼吸灯状态监测。
-- [ ] **多端点自动分流**：针对不同负载自动分配请求。
+### 依赖收集
+使用 Qt 自带的 `windeployqt` 工具收集运行时依赖：
+```bash
+windeployqt --release --compiler-runtime XUnity-LLM-Translator-GUI.exe
+```
 
----
-
-### 📝 许可证
-本项目基于 **MIT** 许可证开源。
+### 单文件封装
+如需生成单文件可执行程序，可使用 **Enigma Virtual Box** 或 **BoxedApp Packer** 将依赖库打包进主程序。注意保留必要的 Qt 插件目录（如 `platforms`、`styles` 等）。
 
 ---
 
-> 📖 **Looking for the English version?** Check [README_US.md](README_US.md)
+## 📝 License
+
+本项目基于 **MIT** 许可证开源。您可以自由使用、修改及分发，但需保留原作者版权声明。
+
+---
+
+> 📖 English version: [README_US.md](README_US.md)
