@@ -3,7 +3,7 @@
 #include "GlossaryManager.h"
 #include "RegexManager.h"
 #include "LogManager.h"
-#include "XuaConfigHijacker.h" // Ensure this header exists / 确保此头文件存在
+#include "XuaConfigHijacker.h"
 #include <QEventLoop>
 #include <QCryptographicHash>
 #include <QRegularExpression>
@@ -12,155 +12,246 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QTimer>
-#include <QElapsedTimer> // Required for speed measurement / 测速需要
+#include <QElapsedTimer>
+#include <QSet>
 #include <regex>
 #include <chrono>
 #include <thread>
 #include <algorithm>
+#include <memory> // 🔥 引入现代C++智能指针
 
 using json = nlohmann::json;
 
 // ==========================================
-// Server log messages (multilingual)
-// 服务器日志消息（多语言）
+// 日志与常量 (HTML Optimized)
 // ==========================================
-const char *SV_LOG_START[] = {"Server started. Port: %1, Threads: %2", "服务已启动，端口：%1，并发线程数：%2"};
-const char *SV_LOG_STOP[] = {"Server stopped", "服务已停止"};
-const char *SV_LOG_REQ[] = {"Request received: ", "收到请求: "};
+const char *SV_LOG_START[] = {
+    "<font color='#4CAF50'><b>Server started.</b></font> Port: %1, Threads: %2",
+    "<font color='#4CAF50'><b>服务已启动</b></font>，端口：%1，并发线程数：%2"};
+const char *SV_LOG_STOP[] = {
+    "<font color='#F44336'><b>Server stopped</b></font>",
+    "<font color='#F44336'><b>服务已停止</b></font>"};
+const char *SV_LOG_REQ_PREFIX[] = {
+    "Request received: ",
+    "收到请求: "};
 const char *SV_ERR_KEY[] = {"Error: Invalid API Key", "错误：API 密钥无效"};
 const char *SV_ERR_FMT[] = {"Error: Invalid Response Format", "错误：响应格式无效"};
 const char *SV_ERR_JSON[] = {"Error: JSON Parse Error", "错误：JSON 解析失败"};
-const char *SV_ERR_NET[] = {"Error: Network Request Failed", "错误：网络请求失败"};
-const char *SV_NEW_TERM[] = {"✨ New Term Discovered: ", "✨ 发现新术语: "};
+const char *SV_NEW_TERM[] = {
+    "<font color='#FF9800'>✨ New Term Discovered: </font>",
+    "<font color='#FF9800'>✨ 发现新术语: </font>"};
 const char *SV_RETRY_ATTEMPT[] = {"🔄 Retry translation (%1/%2): ", "🔄 重试翻译 (%1/%2): "};
-const char *SV_RETRY_SUCCESS[] = {"✅ Retry successful", "✅ 重试成功"};
-const char *SV_RETRY_FAILED[] = {"❌ Retry failed, skipping text", "❌ 重试失败，跳过文本"};
+const char *SV_RETRY_SUCCESS[] = {"<font color='#4CAF50'>✅ Retry successful</font>", "<font color='#4CAF50'>✅ 重试成功</font>"};
+const char *SV_RETRY_FAILED[] = {"<font color='#F44336'>❌ Retry failed, skipping text</font>", "<font color='#F44336'>❌ 重试失败，跳过文本</font>"};
 const char *SV_ABORTED[] = {"⛔ Translation Aborted", "⛔ 翻译已终止"};
 
-/**
- * Structure to hold temporary escape mappings during freeze/thaw operations.
- * 在冻结/解冻操作期间保存临时转义映射的结构体。
- */
 struct EscapeMap
 {
-    QMap<QString, QString> map; ///< Mapping from token (e.g., "[T_0]") to original escaped string.
-                                 ///< 从令牌（例如"[T_0]"）到原始转义字符串的映射。
-    int counter = 0;             ///< Counter for generating unique token numbers.
-                                 ///< 用于生成唯一令牌编号的计数器。
+    QMap<QString, QString> map;
+    int counter = 0;
 };
 
-// ==========================================
-// Freeze method: protect HTML tags and variables, leave newlines untouched.
-// 冻结方法：只保护 HTML 标签和变量，绝对放过换行符！
-// ==========================================
+// 冻结保护
 QString TranslationServer::freezeEscapesLocal(const QString &input, EscapeMap &context)
 {
     QString result = input;
     context.map.clear();
     context.counter = 0;
-
-    // Regular expression to match HTML-like tags and {{variables}}.
-    // 匹配 HTML 标签和 {{变量}} 的正则表达式。
-    QRegularExpression regex(R"(\{\{.*?\}\}|<[^>]+>)");
-
+    static const QRegularExpression regex(R"(\{\{.*?\}\}|<[^>]+>)");
     int lastEnd = 0;
     QString newResult;
-
     QRegularExpressionMatchIterator i = regex.globalMatch(result);
     while (i.hasNext())
     {
         QRegularExpressionMatch match = i.next();
         newResult.append(result.mid(lastEnd, match.capturedStart() - lastEnd));
-
         QString original = match.captured(0);
-        // Generate a unique token, e.g., "[T_0]".
-        // 生成唯一令牌，例如"[T_0]"。
         QString tokenKey = QString("[T_%1]").arg(context.counter++);
-
         context.map[tokenKey] = original;
         newResult.append(tokenKey);
-
         lastEnd = match.capturedEnd();
     }
     newResult.append(result.mid(lastEnd));
     return newResult;
 }
 
-// ==========================================
-// Thaw method: tolerant regular expression to restore tags.
-// 解冻方法：宽容的正则表达式，用于恢复标签。
-// ==========================================
+// 解冻还原
 QString TranslationServer::thawEscapesLocal(const QString &input, const EscapeMap &context)
 {
     QString result = input;
-
-    // Regular expression that matches various possible token formats
-    // (including extra spaces and different brackets).
-    // 匹配各种可能的令牌格式（包括多余空格和不同括号）的正则表达式。
-    QRegularExpression tokenRegex(R"(\s*[\[<【{]\s*T_(\d+)\s*[\]>】}]\s*)", QRegularExpression::CaseInsensitiveOption);
-
+    static const QRegularExpression tokenRegex(R"(\s*[\[<【{]\s*T_(\d+)\s*[\]>】}]\s*)", QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatchIterator i = tokenRegex.globalMatch(result);
     QString newResult;
     int lastEnd = 0;
-
     while (i.hasNext())
     {
         QRegularExpressionMatch match = i.next();
         newResult.append(result.mid(lastEnd, match.capturedStart() - lastEnd));
-
         QString key = QString("[T_%1]").arg(match.captured(1));
         if (context.map.contains(key))
-        {
-            newResult.append(context.map[key]); // Restore original tag / 恢复原始标签
-        }
+            newResult.append(context.map[key]);
         else
-        {
-            newResult.append(match.captured(0)); // If not found, keep as is / 如果找不到，保留原样
-        }
+            newResult.append(match.captured(0));
         lastEnd = match.capturedEnd();
     }
     newResult.append(result.mid(lastEnd));
     return newResult;
 }
 
+// 🔥 Unity 富文本 -> Qt HTML 转换器 (强化兼容版)
+QString TranslationServer::unityToHtml(const QString &text)
+{
+    QString t = text;
+
+    // 1. 去除转义符
+    t.replace(R"(\=)", "=");
+
+    // 2. 🛡️ 保护安全可渲染的标签，转换为不会被逃逸的安全标记
+    t.replace("[LF]", "[[[LF]]]");
+    t.replace(QRegularExpression(R"(<br\s*/?>)", QRegularExpression::CaseInsensitiveOption), "[[[BR]]]");
+
+    static const QRegularExpression colorStart(R"-(<color\s*=\s*"?([^>"]+?)"?>)-", QRegularExpression::CaseInsensitiveOption);
+    t.replace(colorStart, "[[[C:\\1]]]");
+    t.replace(QRegularExpression(R"(</color>)", QRegularExpression::CaseInsensitiveOption), "[[[/C]]]");
+
+    t.replace(QRegularExpression(R"(<(b|i|u)>)", QRegularExpression::CaseInsensitiveOption), "[[[\\1]]]");
+    t.replace(QRegularExpression(R"(</(b|i|u)>)", QRegularExpression::CaseInsensitiveOption), "[[[/\\1]]]");
+
+    // 3. 💥 核心：拦截全部破坏性未知标签（如 <line-height>, <align>），彻底转义为普通文本，防止它们弄爆 Qt 的 HTML 渲染树
+    t.replace("&", "&amp;");
+    t.replace("<", "&lt;");
+    t.replace(">", "&gt;");
+
+    // 4. 🎨 安全还原：把保护好的标记恢复为真正的 HTML
+    t.replace("[[[LF]]]", "<span style='color:#FF5722; font-weight:bold;'>[LF]</span><br>");
+    t.replace("[[[BR]]]", "<span style='color:#FF5722; font-weight:bold;'>[BR]</span><br>");
+    
+    static const QRegularExpression colorStartRes(R"(\[\[\[C:(.*?)\]\]\])");
+    t.replace(colorStartRes, R"(<span style="color:\1;">)");
+    t.replace("[[[/C]]]", "</span>");
+
+    t.replace(QRegularExpression(R"(\[\[\[(b|i|u)\]\]\])"), "<\\1>");
+    t.replace(QRegularExpression(R"(\[\[\[/(b|i|u)\]\]\])"), "</\\1>");
+
+    // 5. 将所有被转义过的其他破坏性标签直接物理隐藏 (保持日志区的绝对简洁)
+    static const QRegularExpression remainingTags(R"(&lt;/?[a-zA-Z0-9_\-]+[^&]*&gt;)");
+    t.replace(remainingTags, "");
+
+    return t;
+}
+
+// 彩虹生成器预留实现
+QString TranslationServer::makeRainbow(const QString &text) {
+    return text;
+}
+
 // ==========================================
-// Implementation of TranslationServer
-// TranslationServer 的实现
+// 🚨 终极标签克隆手术 (完全解封并强化) 🚨
+// ==========================================
+QString TranslationServer::repairTranslationResult(const QString& original, const QString& translated) {
+    QString result = translated;
+
+    // 1. 统一处理：将 LLM 发明的方括号标签全部转化为尖括号 (例如 [b] -> <b>)
+    result.replace(QRegularExpression(R"(\[(/?)(b|i|u|size|color)[^\]]*\])", QRegularExpression::CaseInsensitiveOption), "<\\1\\2>");
+
+    // 2. 🚨 白名单独裁：物理消灭不存在的标签 🚨
+    QStringList checkTags = {"b", "i", "u", "size", "color"};
+    for (const QString& tag : checkTags) {
+        if (!original.contains("<" + tag, Qt::CaseInsensitive)) {
+            QRegularExpression killExp(R"(</?)" + tag + R"((?:>|\s[^>]*>|\\?=[^>]*>))", QRegularExpression::CaseInsensitiveOption);
+            result.remove(killExp);
+        }
+    }
+    
+    // 移除模型脑补的 XML 格式占位符和自闭合垃圾
+    result.remove(QRegularExpression(R"(</?T_\d+>)", QRegularExpression::CaseInsensitiveOption));
+    result.remove(QRegularExpression(R"(<[^>]+/>)"));
+
+    // ==========================================================
+    // 3. 🚨 结构化逐行克隆手术 (Line-by-Line Clone Shell)
+    // 专门针对 Unity 中频繁出现的用 <br> 或 /n 分割的名牌+对话句式修复
+    // ==========================================================
+    QRegularExpression newlineRegex(R"(\[LF\]|\\n|\r?\n|<br\s*/?>)", QRegularExpression::CaseInsensitiveOption); 
+    QStringList orgLines = original.split(newlineRegex);
+    QStringList transLines = result.split(newlineRegex);
+
+    if (orgLines.size() == transLines.size() && orgLines.size() > 0) {
+        QString finalResult;
+        
+        QRegularExpressionMatchIterator matchIt = newlineRegex.globalMatch(original);
+        QStringList separators;
+        while (matchIt.hasNext()) separators.append(matchIt.next().captured(0));
+
+        for (int i = 0; i < orgLines.size(); ++i) {
+            QString oLine = orgLines[i];
+            QString tLine = transLines[i];
+
+            // 完美捕捉并锁死：即使像 <color=#f4b3c2><u color=#c7005c> 这种复杂的复合标签
+            QRegularExpression prefixExp(R"(^(?:<[a-zA-Z/][^>]*>|\s)+)");
+            QRegularExpressionMatch pMatch = prefixExp.match(oLine);
+            QString prefix = pMatch.hasMatch() ? pMatch.captured(0) : "";
+
+            // 完美捕捉并锁死：同理保护 </u></color> 等结尾长关闭标签
+            QRegularExpression suffixExp(R"((?:<[a-zA-Z/][^>]*>|\s)+$)");
+            QRegularExpressionMatch sMatch = suffixExp.match(oLine);
+            QString suffix = sMatch.hasMatch() ? sMatch.captured(0) : "";
+
+            tLine.remove(QRegularExpression(R"(^(?:<[a-zA-Z/][^>]*>|\s)+)"));
+            tLine.remove(QRegularExpression(R"((?:<[a-zA-Z/][^>]*>|\s)+$)"));
+
+            if(tLine.isEmpty() && !oLine.isEmpty()) tLine = oLine;
+
+            finalResult += prefix + tLine + suffix;
+
+            if (i < separators.size()) {
+                finalResult += separators[i];
+            }
+        }
+        return finalResult;
+    }
+
+    // 4. 降级方案 (Fallback Armor)
+    QRegularExpression globalPrefixExp(R"(^(?:<[a-zA-Z/][^>]*>|\s|\[LF\]|\\n|\r?\n|<br\s*/?>)+)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch gpMatch = globalPrefixExp.match(original);
+    QString gp = gpMatch.hasMatch() ? gpMatch.captured(0) : "";
+
+    QRegularExpression globalSuffixExp(R"((?:<[a-zA-Z/][^>]*>|\s|\[LF\]|\\n|\r?\n|<br\s*/?>)+$)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch gsMatch = globalSuffixExp.match(original);
+    QString gs = gsMatch.hasMatch() ? gsMatch.captured(0) : "";
+
+    result.remove(QRegularExpression(R"(^(?:<[a-zA-Z/][^>]*>|\s|\[LF\]|\\n|\r?\n|<br\s*/?>)+)", QRegularExpression::CaseInsensitiveOption));
+    result.remove(QRegularExpression(R"((?:<[a-zA-Z/][^>]*>|\s|\[LF\]|\\n|\r?\n|<br\s*/?>)+$)", QRegularExpression::CaseInsensitiveOption));
+
+    return gp + result + gs;
+}
+
+// ==========================================
+// TranslationServer Implementation
 // ==========================================
 
-/**
- * Constructor. Initializes the server and connects internal signals.
- * 构造函数。初始化服务器并连接内部信号。
- * 
- * @param parent Parent QObject.
- */
 TranslationServer::TranslationServer(QObject *parent) : QObject(parent), m_running(false)
 {
     m_stopRequested = false;
+    m_isStopping = false;
     m_svr = nullptr;
     m_serverThread = nullptr;
+    m_cleanupThread = nullptr;
 
-    // Forward log messages to the global LogManager.
-    // 将日志消息转发到全局 LogManager。
     connect(this, &TranslationServer::logMessage, [](const QString &msg)
             { LogManager::instance().addLog(msg); });
 }
 
-/**
- * Destructor. Ensures the server is stopped.
- * 析构函数。确保服务器已停止。
- */
 TranslationServer::~TranslationServer()
 {
     stopServer();
+    if (m_cleanupThread && m_cleanupThread->joinable())
+    {
+        m_cleanupThread->join();
+        delete m_cleanupThread;
+        m_cleanupThread = nullptr;
+    }
 }
 
-/**
- * Update the server configuration from a new AppConfig.
- * 用新的 AppConfig 更新服务器配置。
- * 
- * @param config New configuration.
- */
 void TranslationServer::updateConfig(const AppConfig &config)
 {
     std::lock_guard<std::mutex> keyLock(m_keyMutex);
@@ -172,34 +263,29 @@ void TranslationServer::updateConfig(const AppConfig &config)
         m_apiKeys.push_back(k.trimmed());
     m_currentKeyIndex = 0;
     if (m_config.enable_glossary)
-    {
         GlossaryManager::instance().setFilePath(m_config.glossary_path);
-    }
 }
 
-/**
- * Get the current server configuration.
- * 获取当前服务器配置。
- * 
- * @return Copy of the current AppConfig.
- */
 AppConfig TranslationServer::getConfig()
 {
     std::lock_guard<std::mutex> lock(m_configMutex);
     return m_config;
 }
 
-/**
- * Start the HTTP server in a background thread.
- * 在后台线程中启动 HTTP 服务器。
- */
 void TranslationServer::startServer()
 {
-    if (m_running)
+    if (m_running || m_isStopping)
         return;
+
+    if (m_cleanupThread && m_cleanupThread->joinable())
+    {
+        m_cleanupThread->join();
+        delete m_cleanupThread;
+        m_cleanupThread = nullptr;
+    }
+
     m_running = true;
     m_stopRequested = false;
-
     m_serverThread = new std::thread(&TranslationServer::runServerLoop, this);
 
     int lang = 1;
@@ -217,85 +303,91 @@ void TranslationServer::startServer()
 
     emit logMessage(QString(SV_LOG_START[lang]).arg(port).arg(threads));
 
-    // Batch mode hijacking logic.
-    // 打包模式接管逻辑。
     if (m_config.enable_batch && !glossaryPath.isEmpty())
     {
-        QString hijackedFile = XuaConfigHijacker::autoDetectAndHijack(glossaryPath, port, threads);
+        QString hijackedFile = XuaConfigHijacker::autoDetectAndHijack(glossaryPath, port, threads, m_config.handle_rich_text, m_config.extract_newline);
         if (!hijackedFile.isEmpty())
         {
-            QString logMsg = (lang == 0) ? QString("🔗 Batch Mode ON: Game config injected (%1)").arg(hijackedFile)
-                                         : QString("🔗 打包模式已开启：游戏配置已智能接管 (%1)").arg(hijackedFile);
+            QString logMsg = (lang == 0) ? QString("🔗 <font color='#2196F3'>Batch Mode ON</font>: Game config injected (%1)").arg(hijackedFile)
+                                         : QString("🔗 <font color='#2196F3'>打包模式已开启</font>：游戏配置已智能接管 (%1)").arg(hijackedFile);
             emit logMessage(logMsg);
         }
     }
     else
     {
-        QString logMsg = (lang == 0) ? "🛡️ Standard Mode: Config.ini untouched."
-                                     : "🛡️ 标准模式：保持游戏原生配置不动。";
-        emit logMessage(logMsg);
+        emit logMessage((lang == 0) ? "🛡️ Standard Mode: Config.ini untouched." : "🛡️ 标准模式：保持游戏原生配置不动。");
     }
 
     emit serverStarted();
 }
 
-/**
- * Stop the HTTP server and clean up.
- * 停止 HTTP 服务器并清理。
- */
 void TranslationServer::stopServer()
 {
-    if (!m_running)
+    if (!m_running || m_isStopping)
         return;
 
     m_stopRequested = true;
-    m_running = false;
+    m_isStopping = true;
 
-    if (m_svr)
-        m_svr->stop();
-
-    if (m_serverThread && m_serverThread->joinable())
+    if (m_cleanupThread && m_cleanupThread->joinable())
     {
-        m_serverThread->join();
-        delete m_serverThread;
-        m_serverThread = nullptr;
+        m_cleanupThread->join();
+        delete m_cleanupThread;
+        m_cleanupThread = nullptr;
     }
 
-    delete m_svr;
-    m_svr = nullptr;
+    m_cleanupThread = new std::thread([this]()
+                                      {
+        QElapsedTimer stopTimer;
+        stopTimer.start();
 
-    int lang = 1;
-    int port = 6800; // default value / 默认值
-    QString glossaryPath = "";
-
-    {
-        std::lock_guard<std::mutex> lock(m_configMutex);
-        lang = m_config.language;
-        glossaryPath = m_config.glossary_path;
-        port = m_config.port; // Get the current port from config / 获取当前配置的端口
-    }
-
-    // Restore the hijacked config.
-    // 恢复被接管的配置。
-    if (!glossaryPath.isEmpty())
-    {
-        QString restoredFile = XuaConfigHijacker::autoDetectAndRestore(glossaryPath, port);
-        if (!restoredFile.isEmpty())
-        {
-            QString logMsg = (lang == 0) ? QString("✅ Config routing cleared: %1").arg(restoredFile)
-                                         : QString("✅ 游戏配置路由已清除：%1").arg(restoredFile);
-            emit logMessage(logMsg);
+        if (m_svr) {
+            m_svr->stop(); // 此处配合异步泵，不会再卡死！
         }
-    }
 
-    emit logMessage(SV_LOG_STOP[lang]);
-    emit serverStopped();
+        if (m_serverThread && m_serverThread->joinable()) {
+            m_serverThread->join();
+            delete m_serverThread;
+            m_serverThread = nullptr;
+        }
+
+        delete m_svr;
+        m_svr = nullptr;
+
+        int lang = 1;
+        int port = 6800;
+        bool isDebug = false;
+        QString glossaryPath = "";
+        {
+            std::lock_guard<std::mutex> lock(m_configMutex);
+            lang = m_config.language;
+            glossaryPath = m_config.glossary_path;
+            port = m_config.port;
+            isDebug = m_config.enable_debug_mode;
+        }
+
+        if (!glossaryPath.isEmpty()) {
+            QString restoredFile = XuaConfigHijacker::autoDetectAndRestore(glossaryPath, port);
+            if (!restoredFile.isEmpty()) {
+                QString logMsg = (lang == 0) ? QString("✅ Config routing cleared: %1").arg(restoredFile)
+                                             : QString("✅ 游戏配置路由已清除：%1").arg(restoredFile);
+                emit logMessage(logMsg);
+            }
+        }
+
+        qint64 elapsed = stopTimer.elapsed();
+        if (isDebug) {
+            QString logMsg = QString(SV_LOG_STOP[lang]) + QString(" <span style='color:#FF4500; font-size:medium;'>[⏱️ %1 ms]</span>").arg(elapsed);
+            emit logMessage(logMsg);
+        } else {
+            emit logMessage(SV_LOG_STOP[lang]);
+        }
+        
+        m_running = false;
+        m_isStopping = false;
+        emit serverStopped(); });
 }
 
-/**
- * Main server loop (runs in a separate thread).
- * 主服务器循环（在单独线程中运行）。
- */
 void TranslationServer::runServerLoop()
 {
     m_svr = new httplib::Server();
@@ -311,18 +403,23 @@ void TranslationServer::runServerLoop()
     m_svr->new_task_queue = [threads]
     { return new httplib::ThreadPool(threads); };
 
-    // =========================================================
-    // Route 1: Original Custom endpoint (with newline protection)
-    // 路由 1：原本的 Custom 端点（自带换行符强力保护）
-    // =========================================================
-    auto customHandler = [this](const httplib::Request &req, httplib::Response &res)
+    // ==========================================
+    // Custom Handler
+    // ==========================================
+    auto customHandler =   [this](const httplib::Request &req, httplib::Response &res)
     {
+        if (m_stopRequested.load(std::memory_order_relaxed))
+        {
+            res.status = 503;
+            res.set_content("Service Unavailable", "text/plain");
+            return;
+        }
+
         if (!req.has_param("text"))
         {
             res.set_content("", "text/plain");
             return;
         }
-
         QString text = QString::fromStdString(req.get_param_value("text")).trimmed();
         if (text.isEmpty())
         {
@@ -338,39 +435,45 @@ void TranslationServer::runServerLoop()
             isDebug = m_config.enable_debug_mode;
         }
 
-        // Prepare log text (replace newlines for display).
-        // 准备日志文本（替换换行符以便显示）。
-        QString logText = text;
-        logText.replace("\n", "[LF]");
-        if (isDebug)
-            emit logMessage(QString("[Custom] ") + QString(SV_LOG_REQ[langIdx]) + logText);
-        else
-            emit logMessage(QString(SV_LOG_REQ[langIdx]) + logText);
-
-        emit workStarted();
-
-        QElapsedTimer timer;
-        timer.start();
-
-        // Protect newlines by replacing them with a placeholder before sending to the LLM.
-        // 在发送给大模型前，用占位符保护换行符。
         text.replace("\r\n", "[LF]");
         text.replace("\n", "[LF]");
 
-        QString result = performTranslation(text, QString::fromStdString(req.remote_addr));
+        QString logHtml = unityToHtml(text);
+        QString prefix = QString("<b style='color:#00B0FF'>[Custom]</b> ") + QString(SV_LOG_REQ_PREFIX[langIdx]);
 
-        // Restore newlines from the placeholder.
-        // 从占位符恢复换行符。
+        if (isDebug)
+            emit logMessage(prefix + logHtml);
+        else
+            emit logMessage(QString(SV_LOG_REQ_PREFIX[langIdx]) + logHtml);
+
+        emit workStarted();
+        QElapsedTimer timer;
+        timer.start();
+
+        if (m_stopRequested.load(std::memory_order_relaxed))
+        {
+            emit workFinished(false);
+            res.status = 500;
+            res.set_content("Failed", "text/plain");
+            return;
+        }
+
+        QString result = performTranslation(text, QString::fromStdString(req.remote_addr));
+        
+        // 🛑 如果处理期间点下了停止，阻止最终的输出！
+        if (m_stopRequested.load(std::memory_order_relaxed))
+        {
+            emit workFinished(false);
+            res.status = 500;
+            res.set_content("Failed", "text/plain");
+            return;
+        }
+
+        QString resultHtml = unityToHtml(result);
         result.replace("[LF]", "\n");
 
         qint64 elapsed = timer.elapsed();
         emit workFinished(!result.isEmpty() && !m_stopRequested);
-
-        bool isDebugFinal = false;
-        {
-            std::lock_guard<std::mutex> lock(m_configMutex);
-            isDebugFinal = m_config.enable_debug_mode;
-        }
 
         if (result.isEmpty())
         {
@@ -379,16 +482,10 @@ void TranslationServer::runServerLoop()
         }
         else
         {
-            // For log display, replace newlines back to [LF] for readability.
-            // 日志显示时，将换行符替换回 [LF] 以便阅读。
-            QString displayResult = result;
-            displayResult.replace("\n", "[LF]");
-
-            if (isDebugFinal)
-                emit logMessage(QString("  -> %1 [⏱️ %2 ms]").arg(displayResult).arg(elapsed));
+            if (isDebug)
+                emit logMessage(QString("  -> %1 <span style='color:#FF4500; font-size:medium;'>[⏱️ %2 ms]</span>").arg(resultHtml).arg(elapsed));
             else
-                emit logMessage(QString("  -> %1").arg(displayResult));
-
+                emit logMessage(QString("  -> %1").arg(resultHtml));
             res.set_content(result.toStdString(), "text/plain; charset=utf-8");
         }
     };
@@ -396,18 +493,23 @@ void TranslationServer::runServerLoop()
     m_svr->Get("/", customHandler);
     m_svr->Post("/", customHandler);
 
-    // =========================================================
-    // Route 2: Fake Google Translate API endpoint (for batch mode)
-    // 路由 2：伪装 Google Translate API 端点（多行打包模式）
-    // =========================================================
-    auto googleHandler = [this](const httplib::Request &req, httplib::Response &res)
+    // ==========================================
+    // Google Handler
+    // ==========================================
+    auto googleHandler =  [this](const httplib::Request &req, httplib::Response &res)
     {
+        if (m_stopRequested.load(std::memory_order_relaxed))
+        {
+            res.status = 503;
+            res.set_content("[]", "application/json");
+            return;
+        }
+
         if (!req.has_param("q"))
         {
             res.set_content("[]", "application/json");
             return;
         }
-
         QString text = QString::fromStdString(req.get_param_value("q")).trimmed();
         if (text.isEmpty())
         {
@@ -424,67 +526,120 @@ void TranslationServer::runServerLoop()
         }
 
         emit workStarted();
-
         QElapsedTimer timer;
         timer.start();
 
-        // Newlines here are line separators; we keep them as is.
-        // 这里的换行符是行分隔符，我们原样保留。
-        QString result = performTranslation(text, QString::fromStdString(req.remote_addr));
+        QStringList allOrigLines = text.split('\n');
+        std::vector<int> validIndices;
+        QStringList linesToTranslate;
 
-        qint64 elapsed = timer.elapsed();
-        emit workFinished(!result.isEmpty() && !m_stopRequested);
-
-        if (result.isEmpty())
+        for (int i = 0; i < allOrigLines.size(); ++i)
         {
+            QString line = allOrigLines[i].trimmed();
+            if (containsTranslatableContent(line))
+            {
+                validIndices.push_back(i);
+                linesToTranslate.push_back(allOrigLines[i]);
+            }
+        }
+
+        QString batchResultText;
+        if (linesToTranslate.isEmpty() || m_stopRequested.load(std::memory_order_relaxed))
+        {
+            batchResultText = "";
+        }
+        else
+        {
+            QString cleanPayload = linesToTranslate.join('\n');
+            batchResultText = performTranslation(cleanPayload, QString::fromStdString(req.remote_addr));
+        }
+
+        // 🛑 如果已请求停止服务，直接截断！防止批处理排队导致的 UI 日志狂乱输出（ANR）
+        if (m_stopRequested.load(std::memory_order_relaxed))
+        {
+            emit workFinished(false);
             res.status = 500;
             res.set_content("[]", "application/json");
             return;
         }
 
-        bool isDebugFinal = false;
+        qint64 elapsed = timer.elapsed();
+        emit workFinished(!batchResultText.isEmpty() && !m_stopRequested);
+
+        QStringList translatedLines;
+        if (!batchResultText.isEmpty())
         {
-            std::lock_guard<std::mutex> lock(m_configMutex);
-            isDebugFinal = m_config.enable_debug_mode;
+            translatedLines = batchResultText.split('\n');
         }
 
-        QStringList origLines = text.split('\n');
-        QStringList transLines = result.split('\n');
+        QStringList finalOutputLines;
+        int transIdx = 0;
 
-        for (int i = 0; i < origLines.size(); ++i)
+        QString prefix = QString("<b style='color:#FF9800'>[Google]</b> ") + QString(SV_LOG_REQ_PREFIX[langIdx]);
+
+        for (int i = 0; i < allOrigLines.size(); ++i)
         {
-            QString origL = origLines[i];
-            QString transL = (i < transLines.size()) ? transLines[i] : origL;
-
-            if (transL.isEmpty())
-                transL = "❌ [Missing]";
-
-            if (isDebugFinal)
-                emit logMessage(QString("[Google] ") + QString(SV_LOG_REQ[langIdx]) + origL);
-            else
-                emit logMessage(QString(SV_LOG_REQ[langIdx]) + origL);
-
-            if (isDebugFinal && i == origLines.size() - 1)
+            bool isValid = false;
+            for (int valIdx : validIndices)
             {
-                emit logMessage(QString("  -> %1 [📦 包总耗时: %2 ms]").arg(transL).arg(elapsed));
+                if (valIdx == i)
+                {
+                    isValid = true;
+                    break;
+                }
+            }
+
+            QString origL = allOrigLines[i];
+            QString finalL;
+
+            if (!isValid)
+            {
+                finalL = origL;
             }
             else
             {
-                emit logMessage("  -> " + transL);
+                if (transIdx < translatedLines.size())
+                {
+                    finalL = translatedLines[transIdx];
+                    if (finalL.isEmpty())
+                        finalL = origL;
+                }
+                else
+                {
+                    finalL = origL;
+                }
+                transIdx++;
             }
+
+            QString origHtml = unityToHtml(origL);
+            if (isDebug)
+                emit logMessage(prefix + origHtml);
+            else
+                emit logMessage(QString(SV_LOG_REQ_PREFIX[langIdx]) + origHtml);
+
+            QString finalHtml = unityToHtml(finalL);
+            if (isDebug && i == allOrigLines.size() - 1)
+            {
+                QString timingStr = (langIdx == 0) ? QString(" <span style='color:#FF00FF; font-size:medium;'>[📦 Batch Total: %1 ms]</span>").arg(elapsed)
+                                                   : QString(" <span style='color:#FF00FF; font-size:medium;'>[📦 包总耗时: %1 ms]</span>").arg(elapsed);
+                emit logMessage("  -> " + finalHtml + timingStr);
+            }
+            else
+            {
+                emit logMessage("  -> " + finalHtml);
+            }
+
+            finalOutputLines.push_back(finalL);
         }
 
         json innerArray = json::array();
-        for (int i = 0; i < origLines.size(); ++i)
+        for (int i = 0; i < allOrigLines.size(); ++i)
         {
-            QString origL = origLines[i];
-            QString transL = (i < transLines.size()) ? transLines[i] : origL;
-            json item = json::array({transL.toStdString(), origL.toStdString(), nullptr, nullptr, 1});
-            innerArray.push_back(item);
+            QString origL = allOrigLines[i];
+            QString transL = (i < finalOutputLines.size()) ? finalOutputLines[i] : origL;
+            innerArray.push_back(json::array({transL.toStdString(), origL.toStdString(), nullptr, nullptr, 1}));
         }
-
-        json responseArray = json::array({innerArray, nullptr, "ja"});
-        res.set_content(responseArray.dump(), "application/json; charset=utf-8");
+        res.set_content(json::array({innerArray, nullptr, "ja"}).dump(), "application/json; charset=utf-8");
     };
 
     m_svr->Get("/translate_a/single", googleHandler);
@@ -493,16 +648,17 @@ void TranslationServer::runServerLoop()
     m_svr->listen("0.0.0.0", port);
 }
 
-/**
- * Perform translation with retry logic.
- * 执行带有重试逻辑的翻译。
- * 
- * @param text      Input text.
- * @param clientIP  Client IP address (for context separation).
- * @return Translated text, or empty string on failure.
- */
+bool TranslationServer::containsTranslatableContent(const QString &text)
+{
+    static const QRegularExpression hasLetter(R"(\p{L})");
+    return text.contains(hasLetter);
+}
+
 QString TranslationServer::performTranslation(const QString &text, const QString &clientIP)
 {
+    if (!containsTranslatableContent(text))
+        return text;
+
     QString resultText = "";
     int retryCount = 0;
     const int MAX_RETRY_COUNT = 5;
@@ -522,8 +678,7 @@ QString TranslationServer::performTranslation(const QString &text, const QString
         }
         if (retryCount > 0)
         {
-            QString retryMsg = QString(SV_RETRY_ATTEMPT[langIdx]).arg(retryCount + 1).arg(MAX_RETRY_COUNT);
-            emit logMessage(retryMsg);
+            emit logMessage(QString(SV_RETRY_ATTEMPT[langIdx]).arg(retryCount + 1).arg(MAX_RETRY_COUNT));
             for (int i = 0; i < RETRY_DELAY_MS / 100; ++i)
             {
                 if (m_stopRequested)
@@ -551,13 +706,6 @@ QString TranslationServer::performTranslation(const QString &text, const QString
     return resultText;
 }
 
-/**
- * Check if a translation result is valid (non‑empty and not an error message).
- * 检查翻译结果是否有效（非空且不是错误消息）。
- * 
- * @param result The translation result.
- * @return True if valid.
- */
 bool TranslationServer::isValidTranslationResult(const QString &result)
 {
     return !result.isEmpty() &&
@@ -567,18 +715,30 @@ bool TranslationServer::isValidTranslationResult(const QString &result)
            result.length() > 0;
 }
 
-/**
- * Perform a single translation attempt (no retry).
- * 执行单次翻译尝试（无重试）。
- * 
- * @param text      Input text.
- * @param clientIP  Client IP.
- * @return Translated text, or empty string on failure.
- */
+// 🔥 终极单次请求翻译尝试：完美结合碎片化标签重组与内存防泄漏机制
 QString TranslationServer::performSingleTranslationAttempt(const QString &text, const QString &clientIP)
 {
-    if (m_stopRequested)
+    if (m_stopRequested.load(std::memory_order_relaxed))
         return "";
+
+    // ==========================================
+    // 🛠️ 预处理：物理粉碎干扰 LLM 翻译的碎片化标签 (<rotate>, <voffset>)
+    // 让 LLM 能够看到完整通顺的句子！
+    // ==========================================
+    QString preText = text;
+    bool hasRotate = false;
+    QString rotateOpenTag = "";
+    
+    QRegularExpression rotFinder(R"(<rotate\s*\\?=\s*[^>]+>|<rotate>)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch rotMatch = rotFinder.match(preText);
+    if(rotMatch.hasMatch()) {
+        hasRotate = true;
+        rotateOpenTag = rotMatch.captured(0);
+    }
+
+    // 无情抹除这些把字拆散的罪魁祸首
+    preText.remove(QRegularExpression(R"(</?rotate[^>]*>)", QRegularExpression::CaseInsensitiveOption));
+    preText.remove(QRegularExpression(R"(</?voffset[^>]*>)", QRegularExpression::CaseInsensitiveOption));
 
     AppConfig cfg;
     {
@@ -589,43 +749,50 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
     QString apiKey = getNextApiKey();
     if (apiKey.isEmpty())
     {
-        emit logMessage("❌ " + QString(SV_ERR_KEY[cfg.language]));
+        emit logMessage("<font color='#F44336'>❌ " + QString(SV_ERR_KEY[cfg.language]) + "</font>");
         return "";
     }
 
     EscapeMap escapeCtx;
-    QString processedText = freezeEscapesLocal(text, escapeCtx);
-
+    // 使用纯净版文本进行标签冻结
+    QString processedText = freezeEscapesLocal(preText, escapeCtx);
     if (cfg.enable_glossary)
-    {
         processedText = RegexManager::instance().processPre(processedText);
-    }
-
     std::string clientId = generateClientId(clientIP.toStdString()).toStdString();
 
     QString finalSystemPrompt = cfg.system_prompt;
     bool performExtraction = false;
 
-    finalSystemPrompt += "\n\n【Translation Rules (CRITICAL)】:\n"
-                         "1. 🛑 PRESERVE TAGS: Keep tags like '[T_0]' EXACTLY as is.\n"
-                         "2. 🛑 PRESERVE NEWLINES: Keep '[LF]' EXACTLY as is. It represents a line break in dialogs.\n"
-                         "   - Input: \"A:[LF]Hello\"\n"
-                         "   - Output: \"A:[LF]你好\"\n"
-                         "3. 🔰 TERM CODES: Keep 'Z[A-Z]{2}Z' (e.g., 'ZMCZ') codes exactly as is, BUT TRANSLATE THE TEXT BETWEEN THEM!\n"
-                         "   - Input: \"ZMCZtechniqueZMDZ\" -> Output: \"ZMCZ技术ZMDZ\"\n"
-                         "4. 🛑 ANTI-BLEED / NO SENTENCE COMPLETION (Highest Priority):\n"
-                         "   - You will receive fragmented UI texts. Treat EACH LINE as 100% INDEPENDENT.\n"
-                         "   - DO NOT look at chat history to complete an incomplete sentence.\n"
-                         "   - If input is a single word like \"CAMPAIGN\", output ONLY the noun \"活动\" or \"战役\". NEVER append context.\n"
-                         "5. Output ONLY the translated result.\n";
+    finalSystemPrompt += "\n\n【Translation Protocol (STRICT)】:\n"
+                         "0. 🛡️ PRIORITY: TAGS/VARS/Z-CODES > GRAMMAR > STYLE. Never break code structures.\n"
+                         "1. 📤 OUTPUT: Return ONLY the translated result. NO explanations. NO markdown.\n"
+                         "2. 🧱 IMMUTABLES (KEEP EXACTLY):\n"
+                         "   - [T_0], [T_1] ... : Placeholder tokens.\n"
+                         "   - [LF] : Line break.\n"
+                         "   - {{A}}, {{B}} ... : Variables. NEVER translate letters inside.\n"
+                         "3. 📦 CONTAINERS (TRANSLATE CONTENT, KEEP WRAPPERS):\n"
+                         "   - Z-Codes: 'Z[A-Z]{2}Z ... Z[A-Z]{2}Z'. Keep markers, translate inside.\n"
+                         "   - HTML: '<tag>text</tag>'. Keep tags, translate 'text'.\n"
+                         "4. 💬 PUNCTUATION & FORMAT:\n"
+                         "   - Convert punctuation in visible text ONLY.\n"
+                         "   - Do NOT modify punctuation inside tags.\n"
+                         "   - Preserve spacing around tags.\n"
+                         "5. 🧠 TRANSLATION LOGIC:\n"
+                         "   - Treat input as independent UI fragments.\n"
+                         "6. 🚫 ANTI-HALLUCINATION (CRITICAL):\n"
+                         "   - DO NOT add <size>, <color>, <b>, <i> or brackets like [size=...] if they are not in the input.\n"
+                         "   - DO NOT try to fix or close tags. Just keep exactly what you see.\n"
+                         "   - DO NOT invent speaker names. DO NOT output </T_0>.\n"
+                         "7. 🚨 FINAL SAFETY CHECK:\n"
+                         "   - All tags closed\n"
+                         "   - All {{X}} preserved\n"
+                         "   - No new Z-codes created\n";
 
     if (cfg.enable_glossary)
     {
         QString glossaryContext = GlossaryManager::instance().getContextPrompt(processedText);
         if (!glossaryContext.isEmpty())
-        {
             finalSystemPrompt += "\n" + glossaryContext;
-        }
         if (text.length() > 5)
         {
             performExtraction = true;
@@ -659,56 +826,66 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
     payload["messages"] = messages;
     payload["temperature"] = cfg.temperature;
 
-    QNetworkAccessManager manager;
+    // ==========================================
+    // 🛠️ 特性 1：底层网络解耦 & 内存回收确认 (Modern C++ RAII)
+    // ==========================================
+    static thread_local std::unique_ptr<QNetworkAccessManager> threadNam;
+    if (!threadNam)
+        threadNam = std::make_unique<QNetworkAccessManager>();
+
     QNetworkRequest request(QUrl(cfg.api_address + "/chat/completions"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
-    request.setTransferTimeout(45000);
 
-    QNetworkReply *reply = manager.post(request, QByteArray::fromStdString(payload.dump()));
+    std::unique_ptr<QNetworkReply> reply(threadNam->post(request, QByteArray::fromStdString(payload.dump())));
 
+    // ==========================================
+    // 🔥 异步轮询事件泵 (Async Polling Event Pump)
+    // 彻底解决原生 std::thread 中导致 stopServer 卡死的问题！
+    // ==========================================
     QEventLoop loop;
-    QTimer checkTimer;
-    checkTimer.setInterval(100);
+    QElapsedTimer timer;
+    timer.start();
+    bool isTimeout = false;
 
-    QObject::connect(&checkTimer, &QTimer::timeout, [&]()
-                     {
-        if (m_stopRequested) { reply->abort(); loop.quit(); } });
-    checkTimer.start();
+    while (!reply->isFinished())
+    {
+        if (m_stopRequested.load(std::memory_order_relaxed))
+        {
+            reply->abort();
+            threadNam->clearAccessCache();
+            threadNam->clearConnectionCache();
+            break;
+        }
 
-    QTimer timeoutTimer;
-    timeoutTimer.setSingleShot(true);
-    QObject::connect(&timeoutTimer, &QTimer::timeout, &loop, &QEventLoop::quit);
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        if (timer.elapsed() > 40000)
+        {
+            isTimeout = true;
+            reply->abort();
+            break;
+        }
 
-    timeoutTimer.start(40000);
-    loop.exec();
+        loop.processEvents(QEventLoop::AllEvents, 50);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
 
+    if (m_stopRequested.load(std::memory_order_relaxed))
+        return "";
+
+    if (isTimeout)
+    {
+        emit logMessage("<font color='#F44336'>❌ Request Timeout</font>");
+        return ""; 
+    }
+
+    // --- ⬇️ 解析流程 ⬇️ ---
     QString resultText = "";
-
-    if (m_stopRequested)
-    {
-        reply->deleteLater();
-        return "";
-    }
-
-    if (!timeoutTimer.isActive())
-    {
-        emit logMessage("❌ Request Timeout");
-        reply->abort();
-        reply->deleteLater();
-        return "";
-    }
-    timeoutTimer.stop();
-    checkTimer.stop();
-
     if (reply->error() == QNetworkReply::NoError)
     {
         QByteArray responseBytes = reply->readAll();
         try
         {
             json response = json::parse(responseBytes.toStdString());
-
             if (response.contains("usage"))
             {
                 int p = response["usage"].value("prompt_tokens", 0);
@@ -720,50 +897,42 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
             if (response.contains("choices") && !response["choices"].empty())
             {
                 std::string content = response["choices"][0]["message"]["content"];
-                QString rawContent = QString::fromStdString(content);
+                QString cleanContent = QString::fromStdString(content);
 
-                QString cleanContent = rawContent;
-                // Clean up any thinking tags and unnecessary markdown.
-                // 清理思考标签和不必要的 Markdown 符号。
-                cleanContent.remove(QRegularExpression("<think(?:ing)?>.*?</think(?:ing)?>",
-                                                       QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
-                cleanContent.remove(QRegularExpression("</?think(?:ing)?>", QRegularExpression::CaseInsensitiveOption));
-                cleanContent.replace(QRegularExpression("^\\*\\*|\\*\\*$"), "");
+                static const QRegularExpression thinkTag(R"(<think(?:ing)?>.*?</think(?:ing)?>)", QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+                static const QRegularExpression thinkTagShort(R"(</?think(?:ing)?>)", QRegularExpression::CaseInsensitiveOption);
+                static const QRegularExpression boldTag(R"(^\*\*|\*\*$)");
+
+                cleanContent.remove(thinkTag);
+                cleanContent.remove(thinkTagShort);
+                cleanContent.replace(boldTag, "");
                 cleanContent = cleanContent.trimmed();
 
                 if (performExtraction)
                 {
-                    QRegularExpression reTm("<tm>\\s*(.*?)\\s*=\\s*(.*?)\\s*</tm>", QRegularExpression::DotMatchesEverythingOption);
-                    QRegularExpression tokenRegex(R"(\[T_\d+\])");
-                    QRegularExpression lfRegex(R"(\[LF\])");
-                    QRegularExpression termCodeRegex("Z[A-Z]{2}Z");
+                    static const QRegularExpression reTm("<tm>\\s*(.*?)\\s*=\\s*(.*?)\\s*</tm>", QRegularExpression::DotMatchesEverythingOption);
+                    static const QRegularExpression tokenRegex(R"(\[T_\d+\])");
+                    static const QRegularExpression lfRegex(R"(\[LF\])");
+                    static const QRegularExpression termCodeRegex("Z[A-Z]{2}Z");
 
                     QString reconstructionBuffer;
                     int lastPos = 0;
-
                     QRegularExpressionMatchIterator i = reTm.globalMatch(cleanContent);
                     while (i.hasNext())
                     {
                         QRegularExpressionMatch match = i.next();
                         QString k = match.captured(1).trimmed();
                         QString v = match.captured(2).trimmed();
-
                         reconstructionBuffer.append(cleanContent.mid(lastPos, match.capturedStart() - lastPos));
 
                         bool isValidTerm = true;
-                        if (k.isEmpty() || v.isEmpty())
-                            isValidTerm = false;
-                        else if (k.contains(tokenRegex) || v.contains(tokenRegex))
-                            isValidTerm = false;
-                        else if (k.contains(lfRegex) || v.contains(lfRegex))
-                            isValidTerm = false;
-                        else if (k.contains(termCodeRegex) || v.contains(termCodeRegex))
+                        if (k.isEmpty() || v.isEmpty() || k.contains(tokenRegex) || v.contains(tokenRegex) || k.contains(lfRegex) || v.contains(lfRegex) || k.contains(termCodeRegex) || v.contains(termCodeRegex))
                             isValidTerm = false;
 
                         if (isValidTerm && processedText.contains(k, Qt::CaseInsensitive))
                         {
                             GlossaryManager::instance().addNewTerm(k, v);
-                            emit logMessage(QString(SV_NEW_TERM[cfg.language]) + k + " = " + v);
+                            emit logMessage(QString(SV_NEW_TERM[cfg.language]) + "<b>" + k + "</b> = <b>" + v + "</b>");
                         }
                         reconstructionBuffer.append(v);
                         lastPos = match.capturedEnd();
@@ -772,26 +941,61 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
                     cleanContent = reconstructionBuffer;
                 }
 
-                QRegularExpression reTl("<tl>(.*?)</tl>", QRegularExpression::DotMatchesEverythingOption);
+                static const QRegularExpression reTl("<tl>(.*?)</tl>", QRegularExpression::DotMatchesEverythingOption);
                 QRegularExpressionMatch matchTl = reTl.match(cleanContent);
-
                 if (matchTl.hasMatch())
-                {
                     resultText = matchTl.captured(1).trimmed();
-                }
                 else
-                {
                     resultText = cleanContent.trimmed();
-                }
 
                 resultText.remove("<tl>", Qt::CaseInsensitive);
                 resultText.remove("</tl>", Qt::CaseInsensitive);
-
+                
                 resultText = thawEscapesLocal(resultText, escapeCtx);
-
                 if (cfg.enable_glossary)
-                {
                     resultText = RegexManager::instance().processPost(resultText);
+
+                // 2. 🚨执行终极标签克隆手术🚨：必须使用预处理后的干净文本(preText)作比对！
+                resultText = repairTranslationResult(preText, resultText);
+
+                // 3. 保留 Z-Code 安全检查机制
+                static const QRegularExpression zTagRegex("Z[A-Z]{2}Z");
+                QSet<QString> sourceTags;
+                QRegularExpressionMatchIterator j = zTagRegex.globalMatch(processedText);
+                while (j.hasNext())
+                    sourceTags.insert(j.next().captured());
+
+                QString finalCleaned = resultText;
+                QRegularExpressionMatchIterator k = zTagRegex.globalMatch(resultText);
+                QSet<QString> outputTags;
+                while (k.hasNext())
+                    outputTags.insert(k.next().captured());
+
+                for (const QString &tag : outputTags)
+                {
+                    if (!sourceTags.contains(tag))
+                        finalCleaned.replace(tag, "");
+                }
+                resultText = finalCleaned.trimmed();
+
+                // ==========================================
+                // 4. 🔄 Unity 竖排渲染标签重建 (Rotate Reconstruction)
+                // 专门为翻译后的文本，逐个真实字符套回原本的旋转标签！
+                // ==========================================
+                if (hasRotate && !resultText.isEmpty()) {
+                    QString rewrapped;
+                    // 精准匹配：忽略已存在的 HTML 标签、忽略空白和换行，只给实体字符穿戴！
+                    QRegularExpression tokenMatcher(R"(<[^>]+>|\[LF\]|\r?\n|\s+|.)", QRegularExpression::DotMatchesEverythingOption);
+                    QRegularExpressionMatchIterator rit = tokenMatcher.globalMatch(resultText);
+                    while (rit.hasNext()) {
+                        QString token = rit.next().captured(0);
+                        if (token.startsWith("<") || token.startsWith("[LF]") || token.trimmed().isEmpty()) {
+                            rewrapped += token; // 保持标签和空格原封不动
+                        } else {
+                            rewrapped += rotateOpenTag + token + "</rotate>"; // 重建竖排渲染！
+                        }
+                    }
+                    resultText = rewrapped;
                 }
 
                 if (isValidTranslationResult(resultText))
@@ -809,32 +1013,25 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
             }
             else
             {
-                emit logMessage("❌ " + QString(SV_ERR_FMT[cfg.language]));
+                emit logMessage("<font color='#F44336'>❌ " + QString(SV_ERR_FMT[cfg.language]) + "</font>");
                 resultText = "";
             }
         }
         catch (...)
         {
-            emit logMessage("❌ " + QString(SV_ERR_JSON[cfg.language]));
+            emit logMessage("<font color='#F44336'>❌ " + QString(SV_ERR_JSON[cfg.language]) + "</font>");
             resultText = "";
         }
     }
     else
     {
-        emit logMessage("❌ Network Error: " + reply->errorString());
+        emit logMessage("<font color='#F44336'>❌ Network Error: " + reply->errorString() + "</font>");
         resultText = "";
     }
-
-    reply->deleteLater();
+    
     return resultText;
 }
 
-/**
- * Get the next API key in round‑robin fashion.
- * 以轮询方式获取下一个 API 密钥。
- * 
- * @return Next API key, or empty string if none.
- */
 QString TranslationServer::getNextApiKey()
 {
     std::lock_guard<std::mutex> lock(m_keyMutex);
@@ -845,33 +1042,22 @@ QString TranslationServer::getNextApiKey()
     return key;
 }
 
-/**
- * Generate a short client ID from an IP address (for context separation).
- * 从 IP 地址生成一个简短的客户端 ID（用于上下文隔离）。
- * 
- * @param ip Client IP as std::string.
- * @return First 8 characters of the MD5 hash of the IP.
- */
 QString TranslationServer::generateClientId(const std::string &ip)
 {
     QByteArray hash = QCryptographicHash::hash(QByteArray::fromStdString(ip), QCryptographicHash::Md5);
     return hash.toHex().left(8);
 }
 
-/**
- * Clear all context histories for all clients.
- * 清除所有客户端的上下文历史。
- */
 void TranslationServer::clearAllContexts()
 {
     std::lock_guard<std::mutex> lock(m_contextMutex);
     m_contexts.clear();
-
     int langIdx = 1;
     {
         std::lock_guard<std::mutex> lock(m_configMutex);
         langIdx = m_config.language;
     }
-    QString msg = (langIdx == 0) ? "🧹 Context memory cleared." : "🧹 上下文记忆已清空。";
-    LOG(msg);
+    QString msg = (langIdx == 0) ? "<font color='#9C27B0'>🧹 Context memory cleared.</font>"
+                                 : "<font color='#9C27B0'>🧹 上下文记忆已清空。</font>";
+    emit logMessage(msg);
 }

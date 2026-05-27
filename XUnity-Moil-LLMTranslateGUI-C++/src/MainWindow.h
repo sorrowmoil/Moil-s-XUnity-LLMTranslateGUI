@@ -1,6 +1,5 @@
 #pragma once
-// Prevent multiple inclusion of this header file
-// 防止头文件被重复包含
+// 防止头文件重复包含 | Prevent multiple header inclusion
 
 #include <QMainWindow>
 #include <QLineEdit>
@@ -10,57 +9,54 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QGroupBox>
-#include <QCheckBox> 
+#include <QCheckBox>
 #include <QPropertyAnimation>
-#include <QGraphicsOpacityEffect> 
-#include <functional>             
-#include "TranslationServer.h"    // Translation core service / 翻译核心服务
+#include <QGraphicsOpacityEffect>
+#include <functional>
+#include "TranslationServer.h" // 翻译核心服务 | Translation core service
 #include <QMenu>
-#include <QDialog>                // Include QDialog for standalone windows / 引入QDialog以支持独立窗口
-#include "TokenManager.h"         // Token count manager / Token计数管理器
-#include "HudWindow.h"            // Floating window / HUD mode / 悬浮窗/HUD模式
-#include "LoadingOverlay.h"       // Loading overlay widget / 加载遮罩层控件
+#include <QDialog>          // 🌟 新增：引入 QDialog 以支持独立窗口 | Include QDialog for standalone window
+#include "TokenManager.h"   // Token 计数管理器 | Token count manager
+#include "HudWindow.h"      // 悬浮窗/HUD 模式 | Floating window/HUD mode
+#include "LoadingOverlay.h" // 加载遮罩层 | Loading overlay
 
-// Main window class: classic mode interface
 // 主窗口类：经典模式界面
-class MainWindow : public QMainWindow {
-    Q_OBJECT // Enable Qt meta‑object system (signals/slots) / 启用Qt元对象系统（信号/槽）
+// Main Window Class: Classic Mode UI
+class MainWindow : public QMainWindow
+{
+Q_OBJECT // 启用 Qt 元对象系统（信号/槽）| Enable Qt Meta-Object System (Signals/Slots)
 
-public:
-    // Constructor
-    // 构造函数
+    public :
+    // 构造函数 | Constructor
     MainWindow(QWidget *parent = nullptr);
-    // Destructor
-    // 析构函数
+    // 析构函数 | Destructor
     ~MainWindow();
 
-    // Public interface for main.cpp to synchronize state
-    // 公开接口：供main.cpp同步状态使用
-    TranslationServer* getServer() { return server; }
-    TranslationServer* getServer() const { return server; }
-    
-    // Get current UI configuration as an AppConfig structure
-    // 获取当前UI配置（以AppConfig结构体形式）
-    AppConfig getUiConfig(); 
-    // Load UI state from a configuration file (made public for external calls)
-    // 从配置文件加载UI状态（设为公开以便外部调用）
-    void loadConfigToUi(); 
+    // 🔥 公开接口：供 main.cpp 同步状态使用
+    // 🔥 Public Interface: Used by main.cpp to sync status
+    TranslationServer *getServer() { return server; }
+    TranslationServer *getServer() const { return server; }
 
-    // Switch to modern mode (internal trigger)
-    // 切换到流光模式（内部触发）
+    // 获取当前 UI 配置 | Get current UI configuration
+    AppConfig getUiConfig();
+    // 从配置加载 UI 状态（移动到 public 以便外部调用）
+    // Load UI state from config (moved to public for external access)
+    void loadConfigToUi();
+
+    // 切换到流光模式（内部触发）| Switch to Modern Mode (internal trigger)
     void switchToModernMode();
 
 protected:
-    // Override close event for custom exit animation
-    // 重写关闭事件以实现自定义退出动画
+    // 重写关闭事件 | Override close event
     void closeEvent(QCloseEvent *event) override;
-    // Override show event to synchronize UI after being shown
-    // 重写显示事件以在显示后同步UI
-    void showEvent(QShowEvent *event) override; 
+    // 重写显示事件 | Override show event
+    void showEvent(QShowEvent *event) override;
+    // 重写调整大小事件 | Override resize event
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 
 private slots:
-    // Button click slots
-    // 按钮点击槽函数
+    // 按钮点击槽函数 | Button click slots
     void onStartClicked();
     void onStopClicked();
     void onTestConfig();
@@ -68,144 +64,129 @@ private slots:
     void onSaveConfig();
     void onLoadConfig();
     void onExportLog();
-    
-    // Status update slots
-    // 状态更新槽函数
+
+    // 状态更新槽函数 | Status update slots
     void updateTokenDisplay(long long total, long long prompt, long long completion);
     void onClearContext();
     void onLogMessage(QString msg);
-    
-    // Context menu slots
-    // 上下文菜单槽函数
+
+    // 上下文菜单槽函数 | Context menu slots
     void onLogContextMenu(const QPoint &pos);
-    void onGlossaryContextMenu(const QPoint &pos); 
-    
-    // Animation and UI control
-    // 动画与界面控制
+    void onGlossaryContextMenu(const QPoint &pos);
+    void onBatchContextMenu(const QPoint &pos);  // 多行模式右键菜单
+
+    // 动画与界面控制 | Animation and UI control
     void fadeOutAndClose();
     void toggleTheme();
     void toggleLanguage();
-    
-    // Glossary features
-    // 术语表功能
+
+    // 术语表功能 | Glossary features
     void onSelectGlossary();
     void onOpenAutoTranslations();
     void onGlossaryChanged();
-    
-    // HUD mode switching
-    // HUD模式切换
-    void switchToHud();             
-    void restoreFromHud();          
-    
-    // Server status listening
-    // 服务器状态监听
-    void onServerWorkStarted();     
-    void onServerWorkFinished(bool success); 
-    
-    // UI mode switching
-    // 界面模式切换
+
+    // HUD 模式切换 | HUD mode switching
+    void switchToHud();
+    void restoreFromHud();
+
+    // 服务器状态监听 | Server status listening
+    void onServerWorkStarted();
+    void onServerWorkFinished(bool success);
+
+    // 界面模式切换 | UI mode switching
     void onSwitchToModern();
 
-    // Glossary editor slots (new)
-    // 术语表编辑器专用槽函数（新增）
+    // 🌟 新增：术语表编辑器专用槽函数 | Glossary Editor Slots
     void openGlossaryEditor();
     void saveGlossaryEditor();
+    void onApiComboContextMenu(const QPoint &pos);
 
 signals:
-    // Signal to request switch to modern view (notifies main.cpp to perform window switching)
-    // 请求切换到流光模式的信号（通知main.cpp进行窗口切换）
-    void requestModernView(); 
+    // 请求切换到流光模式（通知 main.cpp 进行窗口切换）
+    // Request switch to Modern View (notify main.cpp to perform window switching)
+    void requestModernView();
 
 private:
-    // Initialize UI layout
-    // 初始化UI布局
+    void setupApiKeyMemory();
+    void handleApiBaseUrlChanged();
+    void persistCurrentApiKeyMemory();
+
+    // 初始化 UI 布局 | Initialize UI layout
     void setupUi();
-    // Enable/disable controls based on server running state
-    // 根据服务器运行状态启用/禁用控件
-    void toggleControls(bool running); 
-    // Apply theme (dark/light)
-    // 应用主题（深色/浅色）
-    void applyTheme(bool isDark);      
-    // Update all UI texts according to current language
-    // 根据当前语言更新所有界面文本
-    void updateUIText();        
-    // Add a glossary path to the history combo box
-    // 添加术语表路径到历史记录下拉框
-    void addToGlossaryHistory(const QString& path);   
-    // Smooth transition logic (used for visual effects during UI changes)
-    // 平滑切换逻辑（用于界面变化时的视觉效果）
+    // 控制控件启用/禁用状态 | Control widget enable/disable state
+    void toggleControls(bool running);
+    // 应用主题（深色/浅色）| Apply theme (Dark/Light)
+    void applyTheme(bool isDark);
+    // 更新界面文本（多语言支持）| Update UI text (Multi-language support)
+    void updateUIText();
+    // 添加术语表路径到历史记录 | Add glossary path to history
+    void addToGlossaryHistory(const QString &path);
+    // 平滑切换逻辑（用于动画过渡）
+    // Smooth switch logic (used for animation transitions)
     void smoothSwitch(std::function<void()> changeLogic);
 
-    // State flags
-    // 状态标志
-    bool m_isClosing = false;           // Whether the window is closing / 是否正在关闭
-    bool m_isDarkTheme = true;          // Current theme (dark/light) / 当前主题
-    int m_currentLang = 0;              // Current language index (0=English, 1=Chinese) / 当前语言索引
-    bool m_isServerRunning = false;     // Server running status / 服务器运行状态
-    
-    // Get a user-friendly error message based on HTTP status code
-    // 根据HTTP状态码获取用户友好的错误信息
+    // 状态标志 | State Flags
+    bool m_isClosing = false;       // 是否正在关闭 | Is closing
+    bool m_isDarkTheme = true;      // 当前主题 | Current theme
+    int m_currentLang = 0;          // 当前语言索引 | Current language index
+    bool m_isServerRunning = false; // 服务器运行状态 | Server running status
+    bool m_apiKeyMemoryEnabled = false;
+    QString m_lastApiBaseUrl;
+
+    // 获取友好的错误消息 | Get friendly error message
     QString getFriendlyErrorMessage(int code, int lang);
-    
-    // Loading overlay pointers
-    // 加载遮罩指针
-    LoadingOverlay *fetchLoadingOverlay = nullptr; 
+
+    // 加载遮罩指针 | Loading overlay pointer
+    LoadingOverlay *fetchLoadingOverlay = nullptr;
     LoadingOverlay *testLoadingOverlay = nullptr;
 
-    // Core UI component definitions (ensuring MainWindow.cpp can access them)
-    // 核心UI组件定义（确保MainWindow.cpp能够访问它们）
-    
-    // Configuration input area
-    // 配置输入区
-    QComboBox *apiAddressCombo;         // API address / API地址
-    QLineEdit *apiKeyEdit;              // API key / API密钥
-    QComboBox *modelCombo;              // Model selection / 模型选择
-    QLineEdit *portEdit;                // Port number / 端口号
-    QDoubleSpinBox *tempSpin;           // Temperature parameter / 温度参数
-    QSpinBox *contextSpin;              // Context length / 上下文长度
-    QSpinBox *threadSpin;               // Thread count / 线程数
-    QTextEdit *systemPromptEdit;        // System prompt / 系统提示词
-    QLineEdit *prePromptEdit;           // Pre‑prompt / 预提示词
-    
-    // Log area
-    // 日志区域
-    QTextEdit *logArea;                 // Log display / 日志显示
-    
-    // Glossary controls
-    // 术语表控制
-    QCheckBox *chkGlossary;             // Enable glossary / 启用术语表
-    QComboBox *glossaryCombo;           // Glossary selection / 术语表选择 (restored / 已补回)
-    QCheckBox *chkLockSysPrompt;        // Lock system prompt / 锁定系统提示
-    QCheckBox *chkLockGlossary;         // Lock glossary path / 锁定术语表路径 (restored / 已补回)
+    // 🔥 核心 UI 组件定义 (确保 MainWindow.cpp 能找到它们)
+    // 🔥 Core UI Component Definitions (Ensure MainWindow.cpp can find them)
 
-    // Function buttons
-    // 功能按钮
-    QPushButton *btnSelectGlossary;     // Select glossary file / 选择术语表文件
-    QPushButton *btnOpenAuto;           // Open auto‑generated translations file / 打开自动翻译文件
+    // 配置输入区 | Configuration Input Area
+    QComboBox *apiAddressCombo;  // API 地址 | API Address
+    QLineEdit *apiKeyEdit;       // API 密钥 | API Key
+    QComboBox *modelCombo;       // 模型选择 | Model Selection
+    QLineEdit *portEdit;         // 端口 | Port
+    QDoubleSpinBox *tempSpin;    // 温度参数 | Temperature Parameter
+    QSpinBox *contextSpin;       // 上下文长度 | Context Length
+    QSpinBox *threadSpin;        // 线程数 | Thread Count
+    QTextEdit *systemPromptEdit; // 系统提示词 | System Prompt
+    QLineEdit *prePromptEdit;    // 预提示词 | Pre-Prompt
 
-    // Main control buttons
-    // 主控制按钮
-    QPushButton *startBtn;              // Start / 启动
-    QPushButton *stopBtn;               // Stop / 停止
-    QPushButton *hudBtn;                // HUD mode / 悬浮窗模式
-    QPushButton *fetchModelBtn;         // Fetch models list / 获取模型列表
-    QPushButton *themeBtn;              // Toggle theme / 切换主题
-    QPushButton *testBtn;               // Test configuration / 测试配置
-    QPushButton *loadBtn;               // Load configuration / 加载配置
-    QPushButton *saveBtn;               // Save configuration / 保存配置
-    QPushButton *exportBtn;             // Export log / 导出日志
-    QPushButton *langBtn;               // Toggle language / 切换语言
-    QPushButton *clearCtxBtn;           // Clear context / 清除上下文
-    QPushButton *modernBtn;             // Switch to modern mode / 切换到流光模式
-    QPushButton *editGlossaryBtn;       // Edit glossary (new) / 编辑术语表按钮（新增）
+    // 日志区域 | Log Area
+    QTextEdit *logArea; // 日志显示 | Log Display
 
-    // Group boxes
-    // 分组框
-    QGroupBox *cfgGroup;                // Configuration group / 配置组
-    QGroupBox *logGroup;                // Log group / 日志组
-    
-    // Labels
-    // 标签
+    // 术语表控制 | Glossary Controls
+    QCheckBox *chkGlossary;      // 启用术语表 | Enable Glossary
+    QComboBox *glossaryCombo;    // 术语表选择 | Glossary Selection (👈 补回这个 | Restored)
+    QCheckBox *chkLockSysPrompt; // 锁定系统提示 | Lock System Prompt
+    QCheckBox *chkLockGlossary;  // 锁定术语表 | Lock Glossary (👈 补回这个 | Restored)
+
+    // 功能按钮 | Function Buttons
+    QPushButton *btnSelectGlossary; // 选择术语表 | Select Glossary
+    QPushButton *btnOpenAuto;       // 自动翻译设置 | Auto Translation Settings
+
+    // 主控制按钮 | Main Control Buttons
+    QPushButton *startBtn;        // 启动 | Start
+    QPushButton *stopBtn;         // 停止 | Stop
+    QPushButton *hudBtn;          // 悬浮窗模式 | HUD Mode
+    QPushButton *fetchModelBtn;   // 获取模型列表 | Fetch Models
+    QPushButton *themeBtn;        // 切换主题 | Toggle Theme
+    QPushButton *testBtn;         // 测试配置 | Test Config
+    QPushButton *loadBtn;         // 加载配置 | Load Config
+    QPushButton *saveBtn;         // 保存配置 | Save Config
+    QPushButton *exportBtn;       // 导出日志 | Export Log
+    QPushButton *langBtn;         // 切换语言 | Toggle Language
+    QPushButton *clearCtxBtn;     // 清除上下文 | Clear Context
+    QPushButton *modernBtn;       // 切换到流光模式 | Switch to Modern Mode
+    QPushButton *editGlossaryBtn; // 🌟 新增：编辑术语表按钮 | Edit Glossary Button
+
+    // 分组框 | Group Boxes
+    QGroupBox *cfgGroup; // 配置组 | Config Group
+    QGroupBox *logGroup; // 日志组 | Log Group
+
+    // 标签 | Labels
     QLabel *lblApiAddr;
     QLabel *lblApiKey;
     QLabel *lblModel;
@@ -215,23 +196,23 @@ private:
     QLabel *lblCtx;
     QLabel *lblSysPrompt;
     QLabel *lblPrePrompt;
-    QLabel *lblGlossary; 
-    QLabel *lblTokens;                  // Token display / Token显示
-    QCheckBox *chkDebug;                // Speed test mode switch / 测速模式开关
-    QCheckBox *chkBatch;                // Batch translation switch / 打包翻译开关
+    QLabel *lblGlossary;
+    QLabel *lblTokens;          // Token 显示 | Token Display
+    QCheckBox *chkDebug;        // ⏱️ 测速模式开关
+    QCheckBox *chkHandleRichText; // 📝 文本处理开关 (HandleRichText)
+    QCheckBox *chkBatch;        // 📦 打包翻译开关
+    QCheckBox *chkExtractNewline; // ↩️ 提取换行开关
 
-    // Persistent members for the glossary editor (new)
-    // 术语表编辑器的持久化成员（新增）
+    // 🌟 新增：术语表编辑器的持久化成员 | Persistent members for Glossary Editor
     QDialog *m_glossaryEditor = nullptr;
     QTextEdit *m_glossaryTextEdit = nullptr;
     QPushButton *m_glossarySaveBtn = nullptr;
     QPushButton *m_glossaryCancelBtn = nullptr;
-    QString m_currentEditingPath;       // Path of the glossary being edited / 当前正在编辑的术语表路径
+    QString m_currentEditingPath; // 记住当前正在编辑的路径 | Remember current editing path
 
-    // Core logic objects
-    // 核心逻辑对象
-    TranslationServer *server;          // Translation service instance / 翻译服务实例
-    QPropertyAnimation *fadeAnim;       // Fade animation for window transitions / 窗口淡入淡出动画
-    TokenManager *m_tokenManager;       // Token manager / Token管理器
-    HudWindow *m_hudWindow = nullptr;   // HUD window instance / 悬浮窗实例
+    // 核心逻辑对象 | Core Logic Objects
+    TranslationServer *server;        // 翻译服务实例 | Translation Service Instance
+    QPropertyAnimation *fadeAnim;     // 淡入淡出动画 | Fade In/Out Animation
+    TokenManager *m_tokenManager;     // Token 管理器 | Token Manager
+    HudWindow *m_hudWindow = nullptr; // 悬浮窗实例 | HUD Window Instance
 };
