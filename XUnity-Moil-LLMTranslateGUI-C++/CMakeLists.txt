@@ -19,7 +19,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # 您必须修改此路径以匹配您本地的 Qt 安装位置。
 # 请确保使用正斜杠 '/'，不要使用反斜杠 '\'。
 # ==============================================================================
-set(CMAKE_PREFIX_PATH "C:/Qt/6.10.2/mingw_64")
+set(CMAKE_PREFIX_PATH "C:/Qt/6.11.1/mingw_64")
 
 # ==============================================================================
 # C++ Standard & Qt Build Tools
@@ -83,6 +83,12 @@ add_executable(XUnityTranslatorCPP
 # 这对于确保 #include "json.hpp" 能被正确找到至关重要
 target_include_directories(XUnityTranslatorCPP PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
+# Define Windows 10 target for httplib compatibility
+# 为 httplib 兼容性定义 Windows 10 目标
+if(WIN32)
+    target_compile_definitions(XUnityTranslatorCPP PRIVATE _WIN32_WINNT=0x0A00)
+endif()
+
 # Link against Qt libraries
 # 链接 Qt 库
 target_link_libraries(XUnityTranslatorCPP PRIVATE
@@ -90,6 +96,14 @@ target_link_libraries(XUnityTranslatorCPP PRIVATE
     Qt6::Network
     Qt6::Core
 )
+
+# Link against Windows DWM library for glass effect
+# 链接 Windows DWM 库以实现毛玻璃效果
+if(WIN32)
+    target_link_libraries(XUnityTranslatorCPP PRIVATE dwmapi)
+endif()
+
+
 
 # ==============================================================================
 # Platform Specific Settings / 平台特定设置
