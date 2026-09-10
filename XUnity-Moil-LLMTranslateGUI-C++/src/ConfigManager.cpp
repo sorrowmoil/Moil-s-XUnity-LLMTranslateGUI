@@ -3,20 +3,20 @@
 
 namespace
 {
-QString normalizeBaseUrl(const QString &url)
-{
-    QString normalized = url.trimmed();
-    while (normalized.endsWith('/'))
+    QString normalizeBaseUrl(const QString &url)
     {
-        normalized.chop(1);
+        QString normalized = url.trimmed();
+        while (normalized.endsWith('/'))
+        {
+            normalized.chop(1);
+        }
+        return normalized;
     }
-    return normalized;
-}
 
-QString encodeBaseUrlKey(const QString &url)
-{
-    return QString::fromUtf8(QUrl::toPercentEncoding(url));
-}
+    QString encodeBaseUrlKey(const QString &url)
+    {
+        return QString::fromUtf8(QUrl::toPercentEncoding(url));
+    }
 }
 
 QString ConfigManager::loadApiKeyForBaseUrl(const QString &baseUrl, const QString &filename)
@@ -184,7 +184,7 @@ AppConfig ConfigManager::loadConfig(const QString &filename)
     config.temperature = settings.value("Settings/temperature", config.temperature).toDouble();
     config.max_threads = settings.value("Settings/max_threads", config.max_threads).toInt();
     config.language = settings.value("Settings/language", config.language).toInt();
-    
+
     config.custom_api_urls = settings.value("Settings/custom_api_urls").toStringList();
 
     // --- 术语表相关设置 ---
@@ -207,11 +207,32 @@ AppConfig ConfigManager::loadConfig(const QString &filename)
     config.hue_shift = settings.value("UI/hue_shift", 0).toInt();
     config.tint_intensity = settings.value("UI/tint_intensity", 100).toInt();
 
-    config.enable_debug_mode = settings.value("Settings/enable_debug_mode", false).toBool();
-    config.enable_batch = settings.value("Settings/enable_batch", false).toBool(); // 默认关闭
-    config.handle_rich_text = settings.value("Settings/handle_rich_text", false).toBool(); // 默认关闭
-    config.extract_newline = settings.value("Settings/extract_newline", false).toBool(); // 默认开启
+    config.ui_mode = settings.value("UI/ui_mode", 0).toInt();
+    config.is_dark = settings.value("UI/is_dark", true).toBool();
 
+    config.modern_opacity = settings.value("UI/modern_opacity", 210).toInt();
+    config.classic_opacity = settings.value("UI/classic_opacity", 255).toInt(); // 🌟 新增：独立读取
+
+    config.enable_debug_mode = settings.value("Settings/enable_debug_mode", false).toBool();
+    config.enable_batch = settings.value("Settings/enable_batch", false).toBool();         // 默认关闭
+    config.handle_rich_text = settings.value("Settings/handle_rich_text", false).toBool(); // 默认关闭
+    config.extract_newline = settings.value("Settings/extract_newline", false).toBool();   // 默认开启
+
+    config.max_retries = settings.value("Settings/max_retries", config.max_retries).toInt();
+    config.timeout_ms = settings.value("Settings/timeout_ms", config.timeout_ms).toInt();
+
+    config.hijack_from_lang = settings.value("Hijack/from_lang", config.hijack_from_lang).toString();
+    config.hijack_to_lang = settings.value("Hijack/to_lang", config.hijack_to_lang).toString();
+    config.hijack_endpoint = settings.value("Hijack/endpoint", config.hijack_endpoint).toString();
+    config.hijack_text_getter = settings.value("Hijack/text_getter", config.hijack_text_getter).toBool();
+
+    config.hijack_enable_imgui = settings.value("Hijack/enable_imgui", config.hijack_enable_imgui).toBool();
+    config.hijack_enable_ugui = settings.value("Hijack/enable_ugui", config.hijack_enable_ugui).toBool();
+    config.hijack_enable_ui_elements = settings.value("Hijack/enable_ui_elements", config.hijack_enable_ui_elements).toBool();
+    config.hijack_enable_ngui = settings.value("Hijack/enable_ngui", config.hijack_enable_ngui).toBool();
+    config.hijack_enable_text_mesh_pro = settings.value("Hijack/enable_text_mesh_pro", config.hijack_enable_text_mesh_pro).toBool();
+    config.hijack_enable_text_mesh = settings.value("Hijack/enable_text_mesh", config.hijack_enable_text_mesh).toBool();
+    config.hijack_enable_fairy_gui = settings.value("Hijack/enable_fairy_gui", config.hijack_enable_fairy_gui).toBool();
     return config;
 }
 
@@ -232,7 +253,7 @@ void ConfigManager::saveConfig(const AppConfig &config, const QString &filename)
     settings.setValue("Settings/temperature", config.temperature);
     settings.setValue("Settings/max_threads", config.max_threads);
     settings.setValue("Settings/language", config.language);
-    
+
     settings.setValue("Settings/custom_api_urls", config.custom_api_urls);
 
     // --- 术语表相关设置 ---
@@ -249,16 +270,17 @@ void ConfigManager::saveConfig(const AppConfig &config, const QString &filename)
     // ==========================================
 
     settings.setValue("UI/ui_mode", config.ui_mode); // 模式标记是共用的，必须存
-
     // 💡 修复点：is_dark 是双界面共用的属性，必须放在防御屏障之外！
     settings.setValue("UI/is_dark", config.is_dark);
+    // 🌟 全局透明度：各自独立，互不污染，双双持久化！
+    settings.setValue("UI/modern_opacity", config.modern_opacity);
+    settings.setValue("UI/classic_opacity", config.classic_opacity);
 
     // 只有当配置是流光模式发出时，才允许覆写【流光专属】UI 参数！
-    // 这样经典模式保存时，硬盘里的圆角和透明度数据就能作为“中间值”被完美保护！
+    // 这样经典模式保存时，硬盘里的圆角等数据就能作为“中间值”被完美保护！
     if (config.is_from_modern)
     {
         settings.setValue("UI/is_rounded", config.is_rounded);
-        settings.setValue("UI/modern_opacity", config.modern_opacity);
         settings.setValue("UI/glass_render_mode", config.glass_render_mode);
         settings.setValue("UI/hue_shift", config.hue_shift);
         settings.setValue("UI/tint_intensity", config.tint_intensity);
@@ -272,6 +294,23 @@ void ConfigManager::saveConfig(const AppConfig &config, const QString &filename)
     settings.setValue("Settings/enable_batch", config.enable_batch);
     settings.setValue("Settings/handle_rich_text", config.handle_rich_text);
     settings.setValue("Settings/extract_newline", config.extract_newline);
-    
+
+    settings.setValue("Settings/max_retries", config.max_retries);
+    settings.setValue("Settings/timeout_ms", config.timeout_ms);
+
+    settings.setValue("Hijack/from_lang", config.hijack_from_lang);
+    settings.setValue("Hijack/to_lang", config.hijack_to_lang);
+
+    settings.setValue("Hijack/endpoint", config.hijack_endpoint);
+    settings.setValue("Hijack/text_getter", config.hijack_text_getter);
+
+    settings.setValue("Hijack/enable_imgui", config.hijack_enable_imgui);
+    settings.setValue("Hijack/enable_ugui", config.hijack_enable_ugui);
+    settings.setValue("Hijack/enable_ui_elements", config.hijack_enable_ui_elements);
+    settings.setValue("Hijack/enable_ngui", config.hijack_enable_ngui);
+    settings.setValue("Hijack/enable_text_mesh_pro", config.hijack_enable_text_mesh_pro);
+    settings.setValue("Hijack/enable_text_mesh", config.hijack_enable_text_mesh);
+    settings.setValue("Hijack/enable_fairy_gui", config.hijack_enable_fairy_gui);
+
     settings.sync();
 }

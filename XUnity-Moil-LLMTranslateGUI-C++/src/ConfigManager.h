@@ -67,8 +67,31 @@ struct AppConfig
     // 全局流光浓度 (0-200, 默认 100)
     int tint_intensity = 100;
 
+    // 经典模式透明度
+    int classic_opacity = 210;
+
     // 跨模式保护屏障标志
     bool is_from_modern = false;
+
+    // --- ⚙️ 高级设置 ---
+    int max_retries = 5;
+    int timeout_ms = 3000;
+
+    // --- 💉 劫持注入设置 ---
+    QString hijack_from_lang = "ja";
+    QString hijack_to_lang = "zh";
+    QString hijack_endpoint = "GoogleTranslate";
+    bool hijack_text_getter = false;
+
+    // --- [TextFrameworks] 文本框架开关 ---
+    bool hijack_enable_imgui = false;
+    bool hijack_enable_ugui = true;
+    bool hijack_enable_ui_elements = true;
+    bool hijack_enable_ngui = true;
+    bool hijack_enable_text_mesh_pro = true;
+    bool hijack_enable_text_mesh = false;
+    bool hijack_enable_fairy_gui = true;
+
 
     // 备选提示词
     AppConfig()

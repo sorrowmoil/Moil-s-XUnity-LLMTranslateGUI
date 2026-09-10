@@ -79,8 +79,10 @@ public:
         return "";
     }
 
-    // 🚀 启动：备份 -> 注入
-    static QString autoDetectAndHijack(const QString &glossaryPath, int port, int maxThreads, bool handleRichText = false, bool extractNewline = true)
+    // 🚀 启动：备份 -> 注入 (带全套底层引擎控制)
+    static QString autoDetectAndHijack(const QString &glossaryPath, int port, int maxThreads, bool handleRichText, bool extractNewline, const QString &hijackFromLang,
+                                       const QString &hijackToLang, const QString &hijackEndpoint, bool hijackTextGetter, bool enableImGui, bool enableUGui,
+                                       bool enableUIElements, bool enableNGUI, bool enableTextMeshPro, bool enableTextMesh, bool enableFairyGUI)
     {
         QString iniPath = deduceIniPath(glossaryPath);
         if (iniPath.isEmpty())
@@ -102,25 +104,6 @@ public:
         in.setEncoding(QStringConverter::Utf8);
 
         QString currentSection = "";
-
-        bool hasServiceSection = false;
-        bool hasGoogleSection = false;
-        bool hasCustomSection = false;
-        bool hasBehaviourSection = false;
-
-        bool hasEndpoint = false;
-        bool hasFallbackEndpoint = false;
-        bool hasGoogleUrl = false;
-        bool hasCustomUrl = false;
-        bool hasBatching = false;
-        bool hasMaxConcurrent = false;
-
-        // 换行符与字符限制标记
-        bool hasIgnoreDialogue = false;
-        bool hasIgnoreNGUI = false;
-        bool hasMaxChars = false;
-        bool hasHandleRichText = false;
-
         while (!in.atEnd())
         {
             QString line = in.readLine();
@@ -129,232 +112,126 @@ public:
             if (trimmed.startsWith("[") && trimmed.endsWith("]"))
             {
                 currentSection = trimmed;
-                if (currentSection.compare("[Service]", Qt::CaseInsensitive) == 0)
-                    hasServiceSection = true;
-                if (currentSection.compare("[Google]", Qt::CaseInsensitive) == 0)
-                    hasGoogleSection = true;
-                if (currentSection.compare("[Custom]", Qt::CaseInsensitive) == 0)
-                    hasCustomSection = true;
-                if (currentSection.compare("[Behaviour]", Qt::CaseInsensitive) == 0)
-                    hasBehaviourSection = true;
+                lines.append(line);
+                continue;
             }
 
-            if (currentSection == "[Service]")
+            // --- 💉 拦截修改逻辑 ---
+            if (currentSection == "[General]")
+            {
+                if (trimmed.startsWith("Language=", Qt::CaseInsensitive))
+                {
+                    line = "Language=" + hijackToLang;
+                }
+                else if (trimmed.startsWith("FromLanguage=", Qt::CaseInsensitive))
+                {
+                    line = "FromLanguage=" + hijackFromLang;
+                }
+            }
+            else if (currentSection == "[Service]")
             {
                 if (trimmed.startsWith("Endpoint=", Qt::CaseInsensitive))
                 {
-                    hasEndpoint = true;
-                    QString val = trimmed.section('=', 1).trimmed();
-                    if (val.startsWith("Custom", Qt::CaseInsensitive))
-                    {
-                        line = trimmed;
-                    }
-                    else
-                    {
-                        line = "Endpoint=GoogleTranslate";
-                    }
+                    // 使用用户在高级设置里选好的 Endpoint
+                    line = "Endpoint=" + hijackEndpoint;
                 }
                 else if (trimmed.startsWith("FallbackEndpoint=", Qt::CaseInsensitive))
                 {
-                    line = "FallbackEndpoint=";
-                    hasFallbackEndpoint = true;
+                    line = "FallbackEndpoint="; // 防止降级到其它插件破坏逻辑
                 }
             }
             else if (currentSection == "[Google]" && trimmed.startsWith("ServiceUrl=", Qt::CaseInsensitive))
             {
                 line = QString("ServiceUrl=http://localhost:%1").arg(port);
-                hasGoogleUrl = true;
             }
             else if (currentSection == "[Custom]" && trimmed.startsWith("Url=", Qt::CaseInsensitive))
             {
                 line = QString("Url=http://localhost:%1").arg(port);
-                hasCustomUrl = true;
             }
             else if (currentSection == "[Behaviour]")
             {
                 if (trimmed.startsWith("EnableBatching=", Qt::CaseInsensitive))
                 {
-                    line = "EnableBatching=True";
-                    hasBatching = true;
+                    line = "EnableBatching=True"; // 如果进了这个函数说明开了多行模式
                 }
                 else if (trimmed.startsWith("MaxConcurrentTranslations=", Qt::CaseInsensitive))
                 {
                     line = QString("MaxConcurrentTranslations=%1").arg(maxThreads);
-                    hasMaxConcurrent = true;
                 }
-                // 🔥 智能换行符判断逻辑 🔥
                 else if (trimmed.startsWith("IgnoreWhitespaceInDialogue=", Qt::CaseInsensitive))
                 {
-                    hasIgnoreDialogue = true;
-                    if (extractNewline)
-                    {
-                        line = "IgnoreWhitespaceInDialogue=False";
-                    }
-                    else
-                    {
-                        line = "IgnoreWhitespaceInDialogue=True";
-                    }
+                    line = extractNewline ? "IgnoreWhitespaceInDialogue=False" : "IgnoreWhitespaceInDialogue=True";
                 }
                 else if (trimmed.startsWith("IgnoreWhitespaceInNGUI=", Qt::CaseInsensitive))
                 {
-                    hasIgnoreNGUI = true;
-                    if (extractNewline)
-                    {
-                        line = "IgnoreWhitespaceInNGUI=False";
-                    }
-                    else
-                    {
-                        line = "IgnoreWhitespaceInNGUI=True";
-                    }
+                    line = extractNewline ? "IgnoreWhitespaceInNGUI=False" : "IgnoreWhitespaceInNGUI=True";
                 }
                 else if (trimmed.startsWith("MaxCharactersPerTranslation=", Qt::CaseInsensitive))
                 {
-                    hasMaxChars = true;
                     QString val = trimmed.section('=', 1).trimmed();
                     if (val.toInt() < 2500)
-                    {
-                        // 保护机制：如果当前长度太短，拉到安全值防止截断
                         line = "MaxCharactersPerTranslation=2500";
-                    }
                 }
-                // 🔥 HandleRichText 劫持逻辑：HandleRichText=false 时开启文本渲染
                 else if (trimmed.startsWith("HandleRichText=", Qt::CaseInsensitive))
                 {
-                    hasHandleRichText = true;
-                    if (handleRichText)
-                    {
-                        // 勾选"文本处理"时，设置 HandleRichText=False 以开启文本渲染
-                        line = "HandleRichText=False";
-                    }
-                    // 未勾选时保持原样
+                    line = handleRichText ? "HandleRichText=False" : "HandleRichText=True";
+                }
+                else if (trimmed.startsWith("TextGetterCompatibilityMode=", Qt::CaseInsensitive))
+                {
+                    // 💉 强制注入文本获取兼容模式
+                    line = "TextGetterCompatibilityMode=" + QString(hijackTextGetter ? "True" : "False");
                 }
             }
-
+            else if (currentSection.compare("[TextFrameworks]", Qt::CaseInsensitive) == 0)
+            {
+                if (trimmed.startsWith("EnableIMGUI=", Qt::CaseInsensitive))
+                {
+                    line = QString("EnableIMGUI=%1").arg(enableImGui ? "True" : "False");
+                }
+                else if (trimmed.startsWith("EnableUGUI=", Qt::CaseInsensitive))
+                {
+                    line = QString("EnableUGUI=%1").arg(enableUGui ? "True" : "False");
+                }
+                else if (trimmed.startsWith("EnableUIElements=", Qt::CaseInsensitive))
+                {
+                    line = QString("EnableUIElements=%1").arg(enableUIElements ? "True" : "False");
+                }
+                else if (trimmed.startsWith("EnableNGUI=", Qt::CaseInsensitive))
+                {
+                    line = QString("EnableNGUI=%1").arg(enableNGUI ? "True" : "False");
+                }
+                else if (trimmed.startsWith("EnableTextMeshPro=", Qt::CaseInsensitive))
+                {
+                    line = QString("EnableTextMeshPro=%1").arg(enableTextMeshPro ? "True" : "False");
+                }
+                else if (trimmed.startsWith("EnableTextMesh=", Qt::CaseInsensitive))
+                {
+                    line = QString("EnableTextMesh=%1").arg(enableTextMesh ? "True" : "False");
+                }
+                else if (trimmed.startsWith("EnableFairyGUI=", Qt::CaseInsensitive))
+                {
+                    line = QString("EnableFairyGUI=%1").arg(enableFairyGUI ? "True" : "False");
+                }
+            }
+            
             lines.append(line);
         }
         file.close();
 
-        // --- 查漏补缺 ---
-        if (!hasServiceSection)
+        // 覆盖写入修改后的文件
+        QFile outFile(iniPath);
+        if (outFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
         {
-            lines.insert(0, "[Service]");
-            lines.insert(1, "Endpoint=GoogleTranslate");
-            lines.insert(2, "FallbackEndpoint=");
-            lines.insert(3, "");
-        }
-        else
-        {
-            if (!hasEndpoint)
-            {
-                for (int i = 0; i < lines.size(); ++i)
-                    if (lines[i].trimmed().compare("[Service]", Qt::CaseInsensitive) == 0)
-                    {
-                        lines.insert(i + 1, "Endpoint=GoogleTranslate");
-                        break;
-                    }
-            }
-            if (!hasFallbackEndpoint)
-            {
-                for (int i = 0; i < lines.size(); ++i)
-                    if (lines[i].trimmed().compare("[Service]", Qt::CaseInsensitive) == 0)
-                    {
-                        lines.insert(i + 1, "FallbackEndpoint=");
-                        break;
-                    }
-            }
-        }
-
-        if (!hasBehaviourSection)
-        {
-            lines.append("");
-            lines.append("[Behaviour]");
-            lines.append("EnableBatching=True");
-            lines.append(QString("MaxConcurrentTranslations=%1").arg(maxThreads));
-            lines.append(extractNewline ? "IgnoreWhitespaceInDialogue=False" : "IgnoreWhitespaceInDialogue=True");
-            lines.append(extractNewline ? "IgnoreWhitespaceInNGUI=False" : "IgnoreWhitespaceInNGUI=True");
-            lines.append("MaxCharactersPerTranslation=2500");
-        }
-        else
-        {
-            if (!hasBatching)
-                for (int i = 0; i < lines.size(); ++i)
-                    if (lines[i].trimmed().compare("[Behaviour]", Qt::CaseInsensitive) == 0)
-                    {
-                        lines.insert(i + 1, "EnableBatching=True");
-                        break;
-                    }
-            if (!hasMaxConcurrent)
-                for (int i = 0; i < lines.size(); ++i)
-                    if (lines[i].trimmed().compare("[Behaviour]", Qt::CaseInsensitive) == 0)
-                    {
-                        lines.insert(i + 1, QString("MaxConcurrentTranslations=%1").arg(maxThreads));
-                        break;
-                    }
-            if (!hasIgnoreDialogue)
-                for (int i = 0; i < lines.size(); ++i)
-                    if (lines[i].trimmed().compare("[Behaviour]", Qt::CaseInsensitive) == 0)
-                    {
-                        lines.insert(i + 1, extractNewline ? "IgnoreWhitespaceInDialogue=False" : "IgnoreWhitespaceInDialogue=True");
-                        break;
-                    }
-            if (!hasIgnoreNGUI)
-                for (int i = 0; i < lines.size(); ++i)
-                    if (lines[i].trimmed().compare("[Behaviour]", Qt::CaseInsensitive) == 0)
-                    {
-                        lines.insert(i + 1, extractNewline ? "IgnoreWhitespaceInNGUI=False" : "IgnoreWhitespaceInNGUI=True");
-                        break;
-                    }
-            if (!hasMaxChars)
-                for (int i = 0; i < lines.size(); ++i)
-                    if (lines[i].trimmed().compare("[Behaviour]", Qt::CaseInsensitive) == 0)
-                    {
-                        lines.insert(i + 1, "MaxCharactersPerTranslation=2500");
-                        break;
-                    }
-        }
-
-        if (!hasGoogleSection)
-        {
-            lines.append("");
-            lines.append("[Google]");
-            lines.append(QString("ServiceUrl=http://localhost:%1").arg(port));
-        }
-        else if (!hasGoogleUrl)
-        {
-            for (int i = 0; i < lines.size(); ++i)
-                if (lines[i].trimmed().compare("[Google]", Qt::CaseInsensitive) == 0)
-                {
-                    lines.insert(i + 1, QString("ServiceUrl=http://localhost:%1").arg(port));
-                    break;
-                }
-        }
-
-        if (!hasCustomSection)
-        {
-            lines.append("");
-            lines.append("[Custom]");
-            lines.append(QString("Url=http://localhost:%1").arg(port));
-        }
-        else if (!hasCustomUrl)
-        {
-            for (int i = 0; i < lines.size(); ++i)
-                if (lines[i].trimmed().compare("[Custom]", Qt::CaseInsensitive) == 0)
-                {
-                    lines.insert(i + 1, QString("Url=http://localhost:%1").arg(port));
-                    break;
-                }
-        }
-
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
-        {
-            QTextStream out(&file);
+            QTextStream out(&outFile);
             out.setEncoding(QStringConverter::Utf8);
             for (const QString &l : lines)
+            {
                 out << l << "\n";
-            file.close();
+            }
+            outFile.close();
+            return iniPath;
         }
-
-        return QFileInfo(iniPath).fileName();
+        return "";
     }
 
     // 🛑 停止：精准还原
@@ -368,12 +245,21 @@ public:
         // 1. 尝试从备份中获取原始配置
         QString originalGoogleUrl = getIniValue(bakPath, "[Google]", "ServiceUrl");
         QString originalCustomUrl = getIniValue(bakPath, "[Custom]", "Url");
+        QString originalLanguage = getIniValue(bakPath, "[General]", "Language");
+        QString originalFromLanguage = getIniValue(bakPath, "[General]", "FromLanguage");
+        QString originalEndpoint = getIniValue(bakPath, "[Service]", "Endpoint");
+        QString originalFallbackEndpoint = getIniValue(bakPath, "[Service]", "FallbackEndpoint");
+        QString originalTextGetter = getIniValue(bakPath, "[Behaviour]", "TextGetterCompatibilityMode");
 
         // 获取原始的换行符和字符限制配置
         QString origIgnoreDialogue = getIniValue(bakPath, "[Behaviour]", "IgnoreWhitespaceInDialogue");
         QString origIgnoreNGUI = getIniValue(bakPath, "[Behaviour]", "IgnoreWhitespaceInNGUI");
         QString origMaxChars = getIniValue(bakPath, "[Behaviour]", "MaxCharactersPerTranslation");
         QString origHandleRichText = getIniValue(bakPath, "[Behaviour]", "HandleRichText");
+
+        QString originalEnableTextMesh = getIniValue(bakPath, "[TextFrameworks]", "EnableTextMesh");
+
+        QString originalEnableImGui = getIniValue(bakPath, "[TextFrameworks]", "EnableIMGUI");
 
         QFile file(iniPath);
         if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -398,6 +284,24 @@ public:
                 currentSection = trimmed;
             }
 
+            // [General] 语言配置恢复
+            if (currentSection.compare("[General]", Qt::CaseInsensitive) == 0)
+            {
+                if (trimmed.startsWith("Language=", Qt::CaseInsensitive))
+                {
+                    if (!originalLanguage.isEmpty())
+                    {
+                        line = "Language=" + originalLanguage;
+                    }
+                }
+                else if (trimmed.startsWith("FromLanguage=", Qt::CaseInsensitive))
+                {
+                    if (!originalFromLanguage.isEmpty())
+                    {
+                        line = "FromLanguage=" + originalFromLanguage;
+                    }
+                }
+            }
             // [Google] 恢复
             if (currentSection == "[Google]" && trimmed.startsWith("ServiceUrl=", Qt::CaseInsensitive))
             {
@@ -456,7 +360,42 @@ public:
                         line = "IgnoreWhitespaceInNGUI=True";
                 }
             }
-
+            // [Service] 端点配置恢复
+            else if (currentSection.compare("[Service]", Qt::CaseInsensitive) == 0)
+            {
+                if (trimmed.startsWith("Endpoint=", Qt::CaseInsensitive))
+                {
+                    if (!originalEndpoint.isEmpty())
+                    {
+                        line = "Endpoint=" + originalEndpoint;
+                    }
+                }
+                else if (trimmed.startsWith(
+                             "FallbackEndpoint=",
+                             Qt::CaseInsensitive))
+                {
+                    // 备份中为空时，也必须恢复成空值
+                    line = "FallbackEndpoint=" + originalFallbackEndpoint;
+                }
+            }
+            // [TextFrameworks] 配置恢复
+            else if (currentSection.compare("[TextFrameworks]", Qt::CaseInsensitive) == 0)
+            {
+                if (trimmed.startsWith("EnableTextMesh=", Qt::CaseInsensitive))
+                {
+                    line = "EnableTextMesh=" +
+                           (originalEnableTextMesh.isEmpty()
+                                ? QStringLiteral("False")
+                                : originalEnableTextMesh);
+                }
+                else if (trimmed.startsWith("EnableIMGUI=", Qt::CaseInsensitive))
+                {
+                    line = "EnableIMGUI=" +
+                           (originalEnableImGui.isEmpty()
+                                ? QStringLiteral("False")
+                                : originalEnableImGui);
+                }
+            }
             lines.append(line);
         }
         file.close();
