@@ -46,9 +46,12 @@ protected:
         p.setRenderHint(QPainter::SmoothPixmapTransform);
 
         QPixmap activePix;
-        if (m_angle < 90.0) {
+        if (m_angle < 90.0)
+        {
             activePix = m_currentPix;
-        } else {
+        }
+        else
+        {
             // 翻转背后需要使用新图片的镜像
             activePix = m_newPix.transformed(QTransform().scale(-1, 1), Qt::SmoothTransformation);
         }
@@ -58,7 +61,7 @@ protected:
         double progress = m_angle / 180.0;
         double targetWidth = m_currentPix.width() * (1.0 - progress) + m_newPix.width() * progress;
         double targetHeight = m_currentPix.height() * (1.0 - progress) + m_newPix.height() * progress;
-        
+
         double baseScaleX = targetWidth / activePix.width();
         double baseScaleY = targetHeight / activePix.height();
 
@@ -71,14 +74,14 @@ protected:
         transform.rotate(m_angle, Qt::YAxis);                                   // 旋转
         transform.scale(baseScaleX, baseScaleY * perspectiveScale);             // 形变+透视
         transform.translate(-activePix.width() / 2.0, -activePix.height() / 2.0);
-        
+
         QPixmap transformedPix = activePix.transformed(transform, Qt::SmoothTransformation);
 
         // --- 核心修复 3：无论图片怎么形变，永远铆死在屏幕的同一个绝对坐标核心 ---
         QPoint localCenter = this->mapFromGlobal(m_centerGlobal);
         int dx = localCenter.x() - transformedPix.width() / 2;
         int dy = localCenter.y() - transformedPix.height() / 2;
-        
+
         p.drawPixmap(dx, dy, transformedPix);
     }
 };
@@ -95,20 +98,28 @@ int main(int argc, char *argv[])
 
     if (startupCfg.ui_mode == 1)
     {
+        classicWin.setLogFeedEnabled(false);
+        modernWin.setLogFeedEnabled(false);
         modernWin.move(classicWin.pos());
         modernWin.show();
+        modernWin.setLogFeedEnabled(true);
     }
     else
     {
+        modernWin.setLogFeedEnabled(false);
         classicWin.show();
+        classicWin.setLogFeedEnabled(true);
     }
 
-        // ============================================================
+    // ============================================================
     // 🚀 [经典] -> [流光] (迎接未来)
     // 动效：扑克牌翻面 (Poker Card Flip)
     // ============================================================
     QObject::connect(&classicWin, &MainWindow::requestModernView, [&]()
                      {
+        classicWin.setLogFeedEnabled(false);
+        modernWin.setLogFeedEnabled(false);
+
         AppConfig cfg = classicWin.getUiConfig();
         cfg.ui_mode = 1; 
         classicWin.getServer()->updateConfig(cfg);
@@ -136,6 +147,7 @@ int main(int argc, char *argv[])
         int targetY = startGeo.center().y() - modernWin.height() / 2;
         modernWin.move(targetX, targetY);
         modernWin.show();
+        modernWin.setLogFeedEnabled(true);
         
         // 🔥 极其关键：物理隐形现代窗口
         modernWin.setWindowOpacity(0.0); 
@@ -175,17 +187,20 @@ int main(int argc, char *argv[])
 
             QObject::connect(anim, &QVariantAnimation::finished, overlay, [overlay, &modernWin]() {
                 overlay->close();
-                modernWin.setWindowOpacity(1.0); // 替身使命结束，真身傲然显现场
+                // 🌟 恢复 1.0！流光模式不需要被 OS 阉割透明度上限
+                modernWin.setWindowOpacity(1.0); 
             });
 
             anim->start(QAbstractAnimation::DeleteWhenStopped);
-        });
-    });
+        }); });
 
     // 4. 切换逻辑：从 [流光] 到 [经典]
     // 4. Switch Logic: From [Modern] to [Classic]
     QObject::connect(&modernWin, &ModernWindow::requestClassicMode, [&]()
                      {
+        modernWin.setLogFeedEnabled(false);
+        classicWin.setLogFeedEnabled(false);
+
         AppConfig cfg = modernWin.getUiConfig();
         
         // 🔥 关键修改：在切换前，强制将配置改为目标模式
@@ -208,16 +223,18 @@ int main(int argc, char *argv[])
             
             // 重新从文件加载配置，以获取最新的 is_dark 和其他参数
             // Reload config from file to get latest is_dark and other parameters
-            classicWin.loadConfigToUi(); 
+            classicWin.loadConfigToUi(false); 
             
             classicWin.setWindowOpacity(0.0); // 初始透明度设为 0 | Set initial opacity to 0
             classicWin.show();                // 显示经典窗口 | Show classic window
+            classicWin.setLogFeedEnabled(true);
             
             // 创建经典窗口的淡入动画 | Create fade-in animation for Classic window
             QPropertyAnimation *fadeIn = new QPropertyAnimation(&classicWin, "windowOpacity");
             fadeIn->setDuration(250);
             fadeIn->setStartValue(0.0);
-            fadeIn->setEndValue(1.0);
+            // 🌟 破除硬编码 1.0！向经典模式要它自己的透明度！
+            fadeIn->setEndValue(classicWin.getOpacity() / 255.0); 
             fadeIn->start(QAbstractAnimation::DeleteWhenStopped);
         });
         fadeOut->start(QAbstractAnimation::DeleteWhenStopped); });
