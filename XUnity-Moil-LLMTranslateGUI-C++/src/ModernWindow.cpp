@@ -14,6 +14,7 @@
 
 #include "ModernWindow.h"
 #include "XuaConfigHijacker.h"
+#include "AdvancedSettings.h"
 #include <QPainterPath>
 #include <QApplication>
 #include <QFileDialog>
@@ -58,15 +59,15 @@
 
 namespace
 {
-QString normalizeApiBaseUrl(const QString &raw)
-{
-    QString normalized = raw.trimmed();
-    while (normalized.endsWith('/'))
+    QString normalizeApiBaseUrl(const QString &raw)
     {
-        normalized.chop(1);
+        QString normalized = raw.trimmed();
+        while (normalized.endsWith('/'))
+        {
+            normalized.chop(1);
+        }
+        return normalized;
     }
-    return normalized;
-}
 }
 
 #ifdef Q_OS_WIN
@@ -179,8 +180,8 @@ class GlassPresetDialog : public QDialog
 {
 public:
     GlassPresetDialog(QWidget *parent, int lang, bool isDark, int alpha, bool isRounded, GlassRenderMode mode, int hueShift, int tintIntensity)
-        : QDialog(parent, Qt::FramelessWindowHint | Qt::Dialog), 
-          m_lang(lang), m_isDark(isDark), m_isRounded(isRounded), m_alpha(alpha), 
+        : QDialog(parent, Qt::FramelessWindowHint | Qt::Dialog),
+          m_lang(lang), m_isDark(isDark), m_isRounded(isRounded), m_alpha(alpha),
           m_mode(mode), m_hueShift(hueShift), m_tintIntensity(tintIntensity)
     {
         setAttribute(Qt::WA_TranslucentBackground);
@@ -195,7 +196,8 @@ public:
         accentColor = shiftHue(accentColor, hueShift);
         QString accentHex = accentColor.name(QColor::HexRgb);
         int dynAlpha = qBound(100, 255 * tintIntensity / 100, 255);
-        QColor bgAccent = accentColor; bgAccent.setAlpha(dynAlpha);
+        QColor bgAccent = accentColor;
+        bgAccent.setAlpha(dynAlpha);
         QString bgAccentHex = bgAccent.name(QColor::HexArgb);
 
         // Title
@@ -205,14 +207,15 @@ public:
 
         // Styling helpers
         QString labelStyle = QString("color: %1; font-weight: bold; font-size: 12px; margin-top: 2px; margin-bottom: 2px;").arg(m_isDark ? "#E0E0E0" : "#333333");
-        QString inputStyle = m_isDark ? 
-            "QLineEdit { background: rgba(0,0,0,80); border: 1px solid rgba(255,255,255,20); color: white; padding: 6px 10px; border-radius: 6px; font-size: 13px; }"
-            "QLineEdit:focus { border: 1px solid " + accentHex + "; background: rgba(0,0,0,100); }" : 
-            "QLineEdit { background: rgba(255,255,255,180); border: 1px solid rgba(0,0,0,20); color: black; padding: 6px 10px; border-radius: 6px; font-size: 13px; }"
-            "QLineEdit:focus { border: 1px solid " + accentHex + "; background: rgba(255,255,255,220); }";
+        QString inputStyle = m_isDark ? "QLineEdit { background: rgba(0,0,0,80); border: 1px solid rgba(255,255,255,20); color: white; padding: 6px 10px; border-radius: 6px; font-size: 13px; }"
+                                        "QLineEdit:focus { border: 1px solid " +
+                                            accentHex + "; background: rgba(0,0,0,100); }"
+                                      : "QLineEdit { background: rgba(255,255,255,180); border: 1px solid rgba(0,0,0,20); color: black; padding: 6px 10px; border-radius: 6px; font-size: 13px; }"
+                                        "QLineEdit:focus { border: 1px solid " +
+                                            accentHex + "; background: rgba(255,255,255,220); }";
 
         // URL
-        QLabel *lblUrl = new QLabel(m_lang == 1 ? "🔗 API 地址 (URL)  <span style='color:"+accentHex+";'>必须</span>" : "🔗 API URL  <span style='color:"+accentHex+";'>required</span>", this);
+        QLabel *lblUrl = new QLabel(m_lang == 1 ? "🔗 API 地址 (URL)  <span style='color:" + accentHex + ";'>必须</span>" : "🔗 API URL  <span style='color:" + accentHex + ";'>required</span>", this);
         lblUrl->setTextFormat(Qt::RichText);
         lblUrl->setStyleSheet(labelStyle);
         m_urlEdit = new QLineEdit(this);
@@ -223,7 +226,7 @@ public:
         mainLayout->addWidget(m_urlEdit);
 
         // Key
-        QLabel *lblKey = new QLabel(m_lang == 1 ? "🔑 API 密钥 (Key)  <span style='color:"+accentHex+";'>必须</span>" : "🔑 API Key  <span style='color:"+accentHex+";'>required</span>", this);
+        QLabel *lblKey = new QLabel(m_lang == 1 ? "🔑 API 密钥 (Key)  <span style='color:" + accentHex + ";'>必须</span>" : "🔑 API Key  <span style='color:" + accentHex + ";'>required</span>", this);
         lblKey->setTextFormat(Qt::RichText);
         lblKey->setStyleSheet(labelStyle);
         m_keyEdit = new QLineEdit(this);
@@ -235,7 +238,7 @@ public:
         mainLayout->addWidget(m_keyEdit);
 
         // Model
-        QLabel *lblModel = new QLabel(m_lang == 1 ? "📦 模型名称 (Model)  <span style='color:"+accentHex+";'>必须</span>" : "📦 Model Name  <span style='color:"+accentHex+";'>required</span>", this);
+        QLabel *lblModel = new QLabel(m_lang == 1 ? "📦 模型名称 (Model)  <span style='color:" + accentHex + ";'>必须</span>" : "📦 Model Name  <span style='color:" + accentHex + ";'>required</span>", this);
         lblModel->setTextFormat(Qt::RichText);
         lblModel->setStyleSheet(labelStyle);
         mainLayout->addWidget(lblModel);
@@ -253,11 +256,12 @@ public:
 
         m_btnFetch = new QPushButton(m_lang == 1 ? "获取模型" : "Fetch", this);
         m_btnFetch->setFixedSize(80, 32);
-        m_btnFetch->setStyleSheet(m_isDark ? 
-            "QPushButton { background: rgba(255,255,255,10); color: white; border: 1px solid rgba(255,255,255,20); border-radius: 6px; font-size: 13px; }"
-            "QPushButton:hover { background: rgba(255,255,255,30); border-color: "+accentHex+"; }" :
-            "QPushButton { background: rgba(0,0,0,5); color: black; border: 1px solid rgba(0,0,0,15); border-radius: 6px; font-size: 13px; }"
-            "QPushButton:hover { background: rgba(0,0,0,15); border-color: "+accentHex+"; }");
+        m_btnFetch->setStyleSheet(m_isDark ? "QPushButton { background: rgba(255,255,255,10); color: white; border: 1px solid rgba(255,255,255,20); border-radius: 6px; font-size: 13px; }"
+                                             "QPushButton:hover { background: rgba(255,255,255,30); border-color: " +
+                                                 accentHex + "; }"
+                                           : "QPushButton { background: rgba(0,0,0,5); color: black; border: 1px solid rgba(0,0,0,15); border-radius: 6px; font-size: 13px; }"
+                                             "QPushButton:hover { background: rgba(0,0,0,15); border-color: " +
+                                                 accentHex + "; }");
         m_btnFetch->setCursor(Qt::PointingHandCursor);
 
         modelLayout->setContentsMargins(0, 0, 0, 0);
@@ -270,11 +274,11 @@ public:
         QHBoxLayout *statusLayout = new QHBoxLayout();
         m_lblStatusLeft = new QLabel(this);
         m_lblStatusRight = new QLabel(this);
-        
+
         QString statusStyle = QString("color: %1; font-size: 11px;").arg(m_isDark ? "rgba(255,255,255,80)" : "rgba(0,0,0,100)");
         m_lblStatusLeft->setStyleSheet(statusStyle);
         m_lblStatusRight->setStyleSheet(statusStyle);
-        
+
         statusLayout->setContentsMargins(0, 2, 0, 4);
         statusLayout->addWidget(m_lblStatusLeft);
         statusLayout->addStretch(1);
@@ -290,27 +294,27 @@ public:
         m_nameEdit->setPlaceholderText(m_lang == 1 ? "例如：我的 OpenAI 兼容服务" : "e.g., My OpenAI API");
         mainLayout->addWidget(lblName);
         mainLayout->addWidget(m_nameEdit);
-        
+
         mainLayout->addStretch(1);
 
         // Buttons
         QHBoxLayout *btnLayout = new QHBoxLayout();
         QPushButton *btnCancel = new QPushButton(m_lang == 1 ? "取消" : "Cancel", this);
         QPushButton *btnOk = new QPushButton(m_lang == 1 ? "💾 保存预设" : "💾 Save Preset", this);
-        
+
         btnCancel->setMinimumHeight(32);
         btnOk->setMinimumHeight(32);
-        
-        QString btnHStyle = m_isDark ? 
-            "QPushButton { background: rgba(255,255,255,10); color: white; border: 1px solid rgba(255,255,255,20); padding: 4px 20px; border-radius: 6px; font-size: 13px; }"
-            "QPushButton:hover { background: rgba(255,255,255,30); }" :
-            "QPushButton { background: rgba(0,0,0,5); color: black; border: 1px solid rgba(0,0,0,20); padding: 4px 20px; border-radius: 6px; font-size: 13px; }"
-            "QPushButton:hover { background: rgba(0,0,0,15); }";
-            
+
+        QString btnHStyle = m_isDark ? "QPushButton { background: rgba(255,255,255,10); color: white; border: 1px solid rgba(255,255,255,20); padding: 4px 20px; border-radius: 6px; font-size: 13px; }"
+                                       "QPushButton:hover { background: rgba(255,255,255,30); }"
+                                     : "QPushButton { background: rgba(0,0,0,5); color: black; border: 1px solid rgba(0,0,0,20); padding: 4px 20px; border-radius: 6px; font-size: 13px; }"
+                                       "QPushButton:hover { background: rgba(0,0,0,15); }";
+
         // 使用带有透明度的动态主颜色按钮
         QString btnAccentStyle = QString("QPushButton { background: %1; color: white; border: none; padding: 4px 20px; border-radius: 6px; font-weight: bold; font-size: 13px; margin-left: 10px; }"
-                                         "QPushButton:hover { background: %2; }").arg(bgAccentHex, accentHex);
-        
+                                         "QPushButton:hover { background: %2; }")
+                                     .arg(bgAccentHex, accentHex);
+
         btnCancel->setStyleSheet(btnHStyle);
         btnOk->setStyleSheet(btnAccentStyle);
         btnCancel->setCursor(Qt::PointingHandCursor);
@@ -322,15 +326,15 @@ public:
         mainLayout->addLayout(btnLayout);
 
         connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
-        connect(btnOk, &QPushButton::clicked, this, [this, dynAlpha]() {
+        connect(btnOk, &QPushButton::clicked, this, [this, dynAlpha]()
+                {
             if (m_urlEdit->text().trimmed().isEmpty() || m_keyEdit->text().trimmed().isEmpty() || m_modelCombo->currentText().trimmed().isEmpty()) {
                 GlassMessageBox::warning(this, m_lang == 1 ? "信息不完整" : "Incomplete Info",
                                  m_lang == 1 ? "API 地址、密钥和模型名称为必填项。" : "URL, Key and Model are required.",
                                  m_isDark, m_alpha, m_isRounded, m_mode, m_hueShift, m_tintIntensity);
                 return;
             }
-            accept();
-        });
+            accept(); });
 
         connect(m_btnFetch, &QPushButton::clicked, this, &GlassPresetDialog::onFetchModels);
     }
@@ -345,22 +349,29 @@ protected:
     {
         QPainter painter(this);
         int radius = m_isRounded ? 12 : 0;
-        
-        if (m_mode == GlassRenderMode::Frosted) {
+
+        if (m_mode == GlassRenderMode::Frosted)
+        {
             drawMenuGlassEffect(painter, rect(), m_isDark, m_alpha, radius, m_hueShift, m_tintIntensity);
-        } else {
+        }
+        else
+        {
             drawLegacyGlowEffect(painter, rect(), m_isDark, m_alpha, radius, 1.0f, 0.0f);
         }
     }
-    
-    void mousePressEvent(QMouseEvent *e) override {
-        if (e->button() == Qt::LeftButton) {
+
+    void mousePressEvent(QMouseEvent *e) override
+    {
+        if (e->button() == Qt::LeftButton)
+        {
             m_dragPos = e->globalPosition().toPoint() - frameGeometry().topLeft();
             e->accept();
         }
     }
-    void mouseMoveEvent(QMouseEvent *e) override {
-        if (e->buttons() & Qt::LeftButton) {
+    void mouseMoveEvent(QMouseEvent *e) override
+    {
+        if (e->buttons() & Qt::LeftButton)
+        {
             move(e->globalPosition().toPoint() - m_dragPos);
             e->accept();
         }
@@ -371,10 +382,11 @@ private:
     {
         QString url = m_urlEdit->text().trimmed();
         QString key = m_keyEdit->text().trimmed();
-        if (url.isEmpty() || key.isEmpty()) {
+        if (url.isEmpty() || key.isEmpty())
+        {
             GlassMessageBox::warning(this, m_lang == 1 ? "错误" : "Error",
-                             m_lang == 1 ? "请先填写 API 地址和密钥。" : "Please fill URL and Key first.",
-                             m_isDark, m_alpha, m_isRounded, m_mode, m_hueShift, m_tintIntensity);
+                                     m_lang == 1 ? "请先填写 API 地址和密钥。" : "Please fill URL and Key first.",
+                                     m_isDark, m_alpha, m_isRounded, m_mode, m_hueShift, m_tintIntensity);
             return;
         }
 
@@ -382,8 +394,9 @@ private:
         QTimer *spinTimer = new QTimer(m_btnFetch);
         spinTimer->setProperty("angle", 0);
         QColor arrowColor = m_isDark ? Qt::white : QColor(50, 50, 50);
-        
-        connect(spinTimer, &QTimer::timeout, [this, spinTimer, arrowColor]() {
+
+        connect(spinTimer, &QTimer::timeout, [this, spinTimer, arrowColor]()
+                {
             int angle = spinTimer->property("angle").toInt();
             angle = (angle + 15) % 360;
             spinTimer->setProperty("angle", angle);
@@ -402,16 +415,17 @@ private:
             p.drawLine(3, 8, 1, 11);
             p.drawLine(3, 8, 5, 11);
             
-            m_btnFetch->setIcon(QIcon(pix));
-        });
+            m_btnFetch->setIcon(QIcon(pix)); });
         spinTimer->start(30);
-        
+
         QNetworkAccessManager *mgr = new QNetworkAccessManager(this);
-        if (url.endsWith("/")) url.chop(1);
+        if (url.endsWith("/"))
+            url.chop(1);
         QNetworkRequest req(QUrl(url + "/models"));
         req.setRawHeader("Authorization", ("Bearer " + key).toUtf8());
         QNetworkReply *reply = mgr->get(req);
-        connect(reply, &QNetworkReply::finished, this, [this, reply, mgr, spinTimer]() {
+        connect(reply, &QNetworkReply::finished, this, [this, reply, mgr, spinTimer]()
+                {
             spinTimer->stop();
             spinTimer->deleteLater();
             m_btnFetch->setIcon(QIcon());
@@ -460,8 +474,7 @@ private:
                 m_lblStatusRight->setText(m_lang == 1 ? "获取失败" : "Fetch Failed");
             }
             reply->deleteLater();
-            mgr->deleteLater();
-        });
+            mgr->deleteLater(); });
     }
 
     int m_lang, m_alpha, m_hueShift, m_tintIntensity;
@@ -522,19 +535,14 @@ ModernWindow::ModernWindow(TranslationServer *server, QWidget *parent)
     if (m_server)
     {
         // 连接信号槽 | Connect signals and slots
-        connect(&LogManager::instance(), &LogManager::newLogAvailable, this, &ModernWindow::updateLog);
-        connect(&LogManager::instance(), &LogManager::logsCleared, logArea, &QTextEdit::clear);
+        setLogFeedEnabled(true);
 
-        m_tokenManager = new TokenManager(this);
-
-        // 1. 服务器产生消耗 -> 告诉 TokenManager (记账)
-        connect(m_server, &TranslationServer::tokenUsageReceived,
-                m_tokenManager, &TokenManager::addUsage);
-
-        // 2. TokenManager 更新账本 -> 告诉 UI (刷新显示)
-        // 注意：这里我们连接到了修改了签名后的 updateToken
-        connect(m_tokenManager, &TokenManager::tokensUpdated,
-                this, &ModernWindow::updateToken);
+        TokenManager &tokenManager = TokenManager::instance();
+        tokenManager.attachTo(*m_server);
+        const auto queuedUnique = static_cast<Qt::ConnectionType>(static_cast<int>(Qt::QueuedConnection) | static_cast<int>(Qt::UniqueConnection));
+        connect(&tokenManager, &TokenManager::tokensUpdated, this, &ModernWindow::updateToken, queuedUnique);
+        const auto tokenSnapshot = tokenManager.snapshot();
+        updateToken(tokenSnapshot.totalTokens, tokenSnapshot.promptTokens, tokenSnapshot.completionTokens);
 
         connect(m_server, &TranslationServer::serverStarted, this, [this]()
                 { updatePowerButtonState(true); });
@@ -555,30 +563,44 @@ ModernWindow::~ModernWindow() {}
 
 void ModernWindow::setupApiKeyMemory()
 {
-    connect(apiAddressCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
-        handleApiBaseUrlChanged();
-    });
+    connect(apiAddressCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int)
+            { handleApiBaseUrlChanged(); });
 
     if (apiAddressCombo->lineEdit())
     {
-        connect(apiAddressCombo->lineEdit(), &QLineEdit::editingFinished, this, [this]() {
-            handleApiBaseUrlChanged();
-        });
+        connect(apiAddressCombo->lineEdit(), &QLineEdit::editingFinished, this, [this]()
+                { handleApiBaseUrlChanged(); });
     }
 
-    connect(apiKeyEdit, &QLineEdit::editingFinished, this, [this]() {
-        persistCurrentApiKeyMemory();
-    });
+    connect(apiKeyEdit, &QLineEdit::editingFinished, this, [this]()
+            { persistCurrentApiKeyMemory(); });
 
-    connect(modelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
-        persistCurrentApiKeyMemory();
-    });
+    connect(modelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int)
+            { persistCurrentApiKeyMemory(); });
 
     if (modelCombo->lineEdit())
     {
-        connect(modelCombo->lineEdit(), &QLineEdit::editingFinished, this, [this]() {
-            persistCurrentApiKeyMemory();
-        });
+        connect(modelCombo->lineEdit(), &QLineEdit::editingFinished, this, [this]()
+                { persistCurrentApiKeyMemory(); });
+    }
+}
+
+void ModernWindow::setLogFeedEnabled(bool enabled)
+{
+    if (m_logFeedEnabled == enabled)
+        return;
+
+    if (enabled)
+    {
+        m_logMessageConnection = connect(&LogManager::instance(), &LogManager::newLogAvailable, this, &ModernWindow::updateLog);
+        m_logsClearedConnection = connect(&LogManager::instance(), &LogManager::logsCleared, logArea, &QTextEdit::clear);
+        m_logFeedEnabled = true;
+    }
+    else
+    {
+        QObject::disconnect(m_logMessageConnection);
+        QObject::disconnect(m_logsClearedConnection);
+        m_logFeedEnabled = false;
     }
 }
 
@@ -655,6 +677,12 @@ void ModernWindow::closeEvent(QCloseEvent *event)
 
     if (m_server)
         m_server->stopServer();
+
+    // 关闭扫描窗口
+    if (m_envScanWindow)
+    {
+        m_envScanWindow->close();
+    }
 
     // 3. 创建退出动画组 (并行执行)
     // 3. Create exit animation group (parallel execution)
@@ -825,6 +853,12 @@ void ModernWindow::setupUi()
     btnPalette = createIconBtn(QChar(0xE2B1)); // Palette
     connect(btnPalette, &QPushButton::clicked, this, &ModernWindow::toggleHuePalette);
 
+    btnEnvScan = createIconBtn(QChar(0xE11B));
+    connect(btnEnvScan, &QPushButton::clicked, this, &ModernWindow::onEnvScanClicked);
+
+    btnAdvSettings = createIconBtn(QChar(0xE713));
+    connect(btnAdvSettings, &QPushButton::clicked, this, &ModernWindow::onAdvSettingsClicked);
+
     // 分组添加按钮和分隔符
     topBar->addWidget(btnLoad);
     topBar->addWidget(btnSave);
@@ -849,23 +883,28 @@ void ModernWindow::setupUi()
     topBar->addWidget(btnDebug);
 
     topBar->addStretch();
+    topBar->addWidget(btnAdvSettings);
+    topBar->addSpacing(4);
+
+    topBar->addWidget(btnEnvScan);
+
     // 返回按钮放在最右侧
     topBar->addWidget(createSep());
     topBar->addSpacing(2);
     btnBack = createIconBtn(QChar(0xE72B)); // Back
     connect(btnBack, &QPushButton::clicked, this, &ModernWindow::onSwitchClicked);
     topBar->addWidget(btnBack);
-    
+
     rootLayout->addLayout(topBar);
 
-     // --- 内容滚动区 | Content Scroll Area ---
+    // --- 内容滚动区 | Content Scroll Area ---
     QScrollArea *scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     // 🔥 核心修复：彻底禁用横向滚动条
     // 🔥 Core Fix: Completely disable horizontal scrollbar
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    
+
     // 🔥 修复悬浮提示框 (QToolTip) 在亮色模式下变黑的问题
     // 使用严格的 ID 选择器，防止 background:transparent 污染全局子控件与悬浮窗
     scroll->setObjectName("MainScrollArea");
@@ -906,7 +945,7 @@ void ModernWindow::setupUi()
     // 🔥 CAN 的数学锁定法则：极限压榨前置留白
     const int INPUT_LOCK_W = 385; // 宽度继续补偿 5px，输入框更宽更霸气
     const int BTN_FETCH_W = 60;
-    const int MODEL_LOCK_W = INPUT_LOCK_W - BTN_FETCH_W - 6; 
+    const int MODEL_LOCK_W = INPUT_LOCK_W - BTN_FETCH_W - 6;
 
     const int LABEL_W = 65; // 🔥 极限瘦身：精准锁定到 65px (刚好容纳 Base_URL:)
     lblApi = new QLabel();
@@ -939,18 +978,19 @@ void ModernWindow::setupUi()
             apiAddressCombo->addItem(customUrl);
             const QString presetName = ConfigManager::loadPresetNameForBaseUrl(customUrl, "config.ini");
             apiAddressCombo->setItemData(apiAddressCombo->count() - 1,
-                presetName.isEmpty() ? (m_lang == 1 ? "自定义 API 地址" : "Custom API URL") : presetName,
-                Qt::ToolTipRole);
+                                         presetName.isEmpty() ? (m_lang == 1 ? "自定义 API 地址" : "Custom API URL") : presetName,
+                                         Qt::ToolTipRole);
         }
     }
-    
+
     // 添加 "+" 选项
     apiAddressCombo->addItem("+");
 
     apiAddressCombo->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(apiAddressCombo, &QComboBox::customContextMenuRequested, this, &ModernWindow::onApiComboContextMenu);
 
-    connect(apiAddressCombo, QOverload<int>::of(&QComboBox::activated), this, [this](int index) {
+    connect(apiAddressCombo, QOverload<int>::of(&QComboBox::activated), this, [this](int index)
+            {
         if (apiAddressCombo->itemText(index) == "+") {
             apiAddressCombo->blockSignals(true);
             apiAddressCombo->setCurrentIndex(0);
@@ -993,8 +1033,7 @@ void ModernWindow::setupUi()
             apiAddressCombo->setCurrentText(newUrl);
             apiKeyEdit->setText(newKey);
             modelCombo->setCurrentText(newModel);
-        }
-    });
+        } });
 
     g1->addWidget(apiAddressCombo, 0, 1, 1, 2); // 跨第 1 和第 2 列
 
@@ -1047,7 +1086,7 @@ void ModernWindow::setupUi()
 
     threadSpin->setRange(1, 1000);
     tempSpin->setRange(0, 2);
-    contextSpin->setRange(0, 20);
+    contextSpin->setRange(0, 100);
     // 高度统统压缩到 24 | Compress all heights to 24
     portEdit->setFixedHeight(24);
     threadSpin->setFixedHeight(24);
@@ -1283,7 +1322,7 @@ void ModernWindow::setupUi()
     GlassCard *logCard = new GlassCard(m_isDark);
     m_glassCards.append(logCard);
     QVBoxLayout *logCardLayout = new QVBoxLayout(logCard);
-    logCardLayout->setContentsMargins(6, 6, 6, 6); 
+    logCardLayout->setContentsMargins(6, 6, 6, 6);
     logCardLayout->addWidget(logArea);
 
     QHBoxLayout *logWrapperLayout = new QHBoxLayout();
@@ -1340,13 +1379,22 @@ void ModernWindow::updateUIText()
     btnEditGlossary->setText(i == 1 ? "术语表编辑" : "Edit Terms");
     btnShape->setToolTip(i == 1 ? "切换窗口形状 (圆角/直角)" : "Toggle Window Shape (Rounded/Sharp)");
     btnEditGlossary->setToolTip(i == 1 ? "侧边滑出流光面板，极速编辑当前选择的术语表" : "Slide out glass panel to edit current glossary");
+    btnEnvScan->setToolTip(i == 1 ? "环境与依赖检测" : "Environment & Dependency Scan");
+    btnAdvSettings->setToolTip(i == 1 ? "高级设置 (网络/超时)" : "Advanced Settings (Network/Timeout)");
+
+    // 🌟 高级设置悬浮窗的多语言同步
+    if (auto *advDlg = this->findChild<AdvancedSettingsDialog *>())
+    {
+        advDlg->updateLanguage(m_lang);
+    }
 
     // 🎨 调色盘按钮
-    if (btnPalette) btnPalette->setToolTip(i == 1 ? "全局色调与浓度设定" : "Global Hue & Tint Settings");
+    if (btnPalette)
+        btnPalette->setToolTip(i == 1 ? "全局色调与浓度设定" : "Global Hue & Tint Settings");
 
     // 🎨 毛玻璃风格切换按钮
     bool isLegacy = (m_glassRenderMode == GlassRenderMode::Legacy);
-    btnGlassStyle->setToolTip(isLegacy ? (i == 1 ? "当前：发光特效（点击切换为毛玻璃）" : "Current: Glow Effect (Click to switch to Frosted)") 
+    btnGlassStyle->setToolTip(isLegacy ? (i == 1 ? "当前：发光特效（点击切换为毛玻璃）" : "Current: Glow Effect (Click to switch to Frosted)")
                                        : (i == 1 ? "当前：毛玻璃特效（点击切换为发光）" : "Current: Frosted Effect (Click to switch to Glow)"));
 
     chkHandleRichText->setText(i == 1 ? "文本处理" : "HRText");
@@ -1396,7 +1444,8 @@ void ModernWindow::updateUIText()
     for (int k = 0; k < apiAddressCombo->count(); ++k)
     {
         QString urlStr = apiAddressCombo->itemText(k);
-        if (urlStr == "+") {
+        if (urlStr == "+")
+        {
             apiAddressCombo->setItemData(k, i == 1 ? "添加自定义 API 地址" : "Add custom API URL", Qt::ToolTipRole);
             continue;
         }
@@ -1411,11 +1460,12 @@ void ModernWindow::updateUIText()
                 break;
             }
         }
-        if (!isPreset) {
+        if (!isPreset)
+        {
             const QString presetName = ConfigManager::loadPresetNameForBaseUrl(urlStr, "config.ini");
             apiAddressCombo->setItemData(k,
-                presetName.isEmpty() ? (i == 1 ? "自定义 API 地址" : "Custom API URL") : presetName,
-                Qt::ToolTipRole);
+                                         presetName.isEmpty() ? (i == 1 ? "自定义 API 地址" : "Custom API URL") : presetName,
+                                         Qt::ToolTipRole);
         }
     }
     apiAddressCombo->setCurrentText(currentApi);
@@ -1428,25 +1478,226 @@ void ModernWindow::updateUIText()
 }
 
 // 更新 Token 显示 | Update Token Display
-void ModernWindow::updateToken(long long total, long long p, long long c)
+void ModernWindow::updateToken(
+    long long total,
+    long long prompt,
+    long long completion)
 {
-    // 🔥 CAN FIX: 让标签使用动态属性自己记住当前的数值，解决语言切换滞后问题！
-    lblTokens->setProperty("current_total", total);
-    lblTokens->setProperty("current_p", p);
-    lblTokens->setProperty("current_c", c);
+    const TokenUsageSnapshot statistics =
+        TokenManager::instance().snapshot();
 
-    lblTokens->setText(QString("%1 %2").arg(STR_TOKENS[m_lang]).arg(total));
+    total = statistics.totalTokens;
+    prompt = statistics.promptTokens;
+    completion = statistics.completionTokens;
 
-    QString pL = (m_lang == 1) ? "输入总计 (Total Prompt):" : "Total Input:";
-    QString cL = (m_lang == 1) ? "输出总计 (Total Completion):" : "Total Output:";
+    // 保留现有语言切换使用的属性名称。
+    lblTokens->setProperty(
+        "current_total",
+        total);
 
-    // Tooltip 显示的也是累计值，清晰明了
-    QString fullTip = QString("<b>%1</b><br><br>%2 %3<br>%4 %5")
-                          .arg(TIP_TOKENS[m_lang])
-                          .arg(pL)
-                          .arg(p)
-                          .arg(cL)
-                          .arg(c);
+    lblTokens->setProperty(
+        "current_p",
+        prompt);
+
+    lblTokens->setProperty(
+        "current_c",
+        completion);
+
+    lblTokens->setText(
+        QString("%1 %2")
+            .arg(STR_TOKENS[m_lang])
+            .arg(total));
+
+    long long otherTokens = 0;
+
+    if (total > prompt)
+    {
+        const long long remaining =
+            total - prompt;
+
+        if (remaining > completion)
+            otherTokens = remaining - completion;
+    }
+
+    const long long reported =
+        statistics.reportedResponses;
+
+    const long long unreported =
+        statistics.unreportedResponses;
+
+    const long double observedResponses =
+        static_cast<long double>(reported) +
+        static_cast<long double>(unreported);
+
+    const QString accentColor =
+        m_isDark
+            ? QStringLiteral("#FF9800")
+            : QStringLiteral("#9400D3");
+
+    const QString warningColor =
+        m_isDark
+            ? QStringLiteral("#FFD45C")
+            : QStringLiteral("#8A2BE2");
+
+    const QString secondaryColor =
+        m_isDark
+            ? QStringLiteral("#CCCCCC")
+            : QStringLiteral("#555555");
+
+    QString fullTip;
+
+    if (m_lang == 1)
+    {
+        fullTip =
+            QString(
+                "<b>%1</b><br><br>"
+                "<span style='color:%2;'><b>总消耗：</b></span> "
+                "<b>%3</b><br>"
+                "输入（Prompt）：<b>%4</b><br>"
+                "输出（Completion）：<b>%5</b>")
+                .arg(TIP_TOKENS[m_lang])
+                .arg(accentColor)
+                .arg(total)
+                .arg(prompt)
+                .arg(completion);
+
+        if (otherTokens > 0)
+        {
+            fullTip +=
+                QString(
+                    "<br>供应商总计中的其他项：<b>%1</b>")
+                    .arg(otherTokens);
+        }
+
+        fullTip +=
+            QString(
+                "<br><br>"
+                "<span style='color:%1;'><b>统计覆盖情况</b></span><br>"
+                "已返回 usage：<b>%2</b> 个响应<br>"
+                "未返回 usage：<b>%3</b> 个响应")
+                .arg(secondaryColor)
+                .arg(reported)
+                .arg(unreported);
+
+        if (observedResponses <= 0.0L)
+        {
+            fullTip +=
+                QStringLiteral(
+                    "<br><br>"
+                    "<span style='color:#888888;'>"
+                    "尚无可统计的 API 响应。"
+                    "</span>");
+        }
+        else if (unreported == 0)
+        {
+            fullTip +=
+                QStringLiteral(
+                    "<br><br>"
+                    "<span style='color:#4CAF50;'>"
+                    "✓ 当前已观察到的响应均提供了 usage 数据。"
+                    "</span>");
+        }
+        else
+        {
+            const double coverage =
+                static_cast<double>(
+                    static_cast<long double>(reported) *
+                    100.0L /
+                    observedResponses);
+
+            fullTip +=
+                QString(
+                    "<br><br>"
+                    "<span style='color:%1;'>"
+                    "⚠ usage 覆盖率：<b>%2%</b><br>"
+                    "当前总数是供应商已报告的最低已知消耗；"
+                    "未返回 usage 的请求不会被伪造估算。"
+                    "</span>")
+                    .arg(warningColor)
+                    .arg(
+                        QString::number(
+                            coverage,
+                            'f',
+                            1));
+        }
+    }
+    else
+    {
+        fullTip =
+            QString(
+                "<b>%1</b><br><br>"
+                "<span style='color:%2;'><b>Total Usage:</b></span> "
+                "<b>%3</b><br>"
+                "Input (Prompt): <b>%4</b><br>"
+                "Output (Completion): <b>%5</b>")
+                .arg(TIP_TOKENS[m_lang])
+                .arg(accentColor)
+                .arg(total)
+                .arg(prompt)
+                .arg(completion);
+
+        if (otherTokens > 0)
+        {
+            fullTip +=
+                QString(
+                    "<br>Other provider-total tokens: "
+                    "<b>%1</b>")
+                    .arg(otherTokens);
+        }
+
+        fullTip +=
+            QString(
+                "<br><br>"
+                "<span style='color:%1;'><b>Statistics Coverage</b></span><br>"
+                "Responses with usage: <b>%2</b><br>"
+                "Responses without usage: <b>%3</b>")
+                .arg(secondaryColor)
+                .arg(reported)
+                .arg(unreported);
+
+        if (observedResponses <= 0.0L)
+        {
+            fullTip +=
+                QStringLiteral(
+                    "<br><br>"
+                    "<span style='color:#888888;'>"
+                    "No API responses have been recorded yet."
+                    "</span>");
+        }
+        else if (unreported == 0)
+        {
+            fullTip +=
+                QStringLiteral(
+                    "<br><br>"
+                    "<span style='color:#4CAF50;'>"
+                    "✓ All observed responses provided usage data."
+                    "</span>");
+        }
+        else
+        {
+            const double coverage =
+                static_cast<double>(
+                    static_cast<long double>(reported) *
+                    100.0L /
+                    observedResponses);
+
+            fullTip +=
+                QString(
+                    "<br><br>"
+                    "<span style='color:%1;'>"
+                    "⚠ Usage coverage: <b>%2%</b><br>"
+                    "The total is the minimum known provider-reported "
+                    "usage. Responses without usage are not estimated."
+                    "</span>")
+                    .arg(warningColor)
+                    .arg(
+                        QString::number(
+                            coverage,
+                            'f',
+                            1));
+        }
+    }
+
     lblTokens->setToolTip(fullTip);
 }
 
@@ -1702,7 +1953,7 @@ void ModernWindow::loadConfigToUi()
         }
     }
 
-    // 2. 同步日志历史 (此时 onLogMessage 拦截器已经知道当前环境了，完美发力！)
+    // 2. 同步日志历史：每次激活都重放当前历史，实时日志由当前活跃窗口独占接收
     logArea->clear();
     QStringList logs = LogManager::instance().getHistory();
     for (const QString &msg : logs)
@@ -1718,17 +1969,21 @@ void ModernWindow::loadConfigToUi()
     for (int i = apiAddressCombo->count() - 1; i >= 0; --i)
     {
         QString itemText = apiAddressCombo->itemText(i);
-        if (itemText == "+") continue;
+        if (itemText == "+")
+            continue;
 
         bool isBuiltIn = false;
         int presetSize = sizeof(MODERN_PRESETS) / sizeof(LocalApiPreset);
-        for (int p = 0; p < presetSize; ++p) {
-            if (MODERN_PRESETS[p].url == itemText) {
+        for (int p = 0; p < presetSize; ++p)
+        {
+            if (MODERN_PRESETS[p].url == itemText)
+            {
                 isBuiltIn = true;
                 break;
             }
         }
-        if (!isBuiltIn && !cfg.custom_api_urls.contains(itemText)) {
+        if (!isBuiltIn && !cfg.custom_api_urls.contains(itemText))
+        {
             apiAddressCombo->removeItem(i);
         }
     }
@@ -1742,8 +1997,8 @@ void ModernWindow::loadConfigToUi()
             int insIndex = apiAddressCombo->count() > 0 ? apiAddressCombo->count() - 1 : 0;
             apiAddressCombo->insertItem(insIndex, customUrl);
             QString presetName = ConfigManager::loadPresetNameForBaseUrl(customUrl, "config.ini");
-            apiAddressCombo->setItemData(insIndex, 
-                presetName.isEmpty() ? (m_lang == 1 ? "自定义 API 地址" : "Custom API URL") : presetName, Qt::ToolTipRole);
+            apiAddressCombo->setItemData(insIndex,
+                                         presetName.isEmpty() ? (m_lang == 1 ? "自定义 API 地址" : "Custom API URL") : presetName, Qt::ToolTipRole);
         }
     }
 
@@ -1858,20 +2113,37 @@ AppConfig ModernWindow::getUiConfig()
     AppConfig savedCfg = ConfigManager::loadConfig(); // 先加载已有配置以继承不需要修改的值
     cfg.custom_api_urls = savedCfg.custom_api_urls;
 
+    cfg.timeout_ms = savedCfg.timeout_ms;
+    cfg.max_retries = savedCfg.max_retries;
+
+    cfg.hijack_from_lang = savedCfg.hijack_from_lang;
+    cfg.hijack_to_lang = savedCfg.hijack_to_lang;
+    cfg.hijack_endpoint = savedCfg.hijack_endpoint;
+    cfg.hijack_text_getter = savedCfg.hijack_text_getter;
+    cfg.hijack_enable_imgui = savedCfg.hijack_enable_imgui;
+    cfg.hijack_enable_text_mesh = savedCfg.hijack_enable_text_mesh;
+
+    cfg.classic_opacity = savedCfg.classic_opacity;
+    cfg.api_address = apiAddressCombo->currentText();
+
     cfg.api_address = apiAddressCombo->currentText();
     cfg.api_key = apiKeyEdit->text();
-    
+
     // 检查并保存自定义 API 地址
-    if (!cfg.api_address.isEmpty() && cfg.api_address != "+") {
+    if (!cfg.api_address.isEmpty() && cfg.api_address != "+")
+    {
         bool isPreset = false;
         int presetSize = sizeof(MODERN_PRESETS) / sizeof(LocalApiPreset);
-        for (int p = 0; p < presetSize; ++p) {
-            if (cfg.api_address == MODERN_PRESETS[p].url) {
+        for (int p = 0; p < presetSize; ++p)
+        {
+            if (cfg.api_address == MODERN_PRESETS[p].url)
+            {
                 isPreset = true;
                 break;
             }
         }
-        if (!isPreset && !cfg.custom_api_urls.contains(cfg.api_address)) {
+        if (!isPreset && !cfg.custom_api_urls.contains(cfg.api_address))
+        {
             cfg.custom_api_urls.append(cfg.api_address);
         }
     }
@@ -1901,7 +2173,8 @@ AppConfig ModernWindow::getUiConfig()
     cfg.is_dark = m_isDark; // 记录当前明暗 | Record current dark/light
     cfg.ui_mode = 1;        // 强制标记：我是流光模式 | Force mark: I am Modern Mode
     // --- 🔥 重点：将透明度设置 | Key: Set opacity ---
-    cfg.modern_opacity = m_alpha;
+    cfg.modern_opacity = m_alpha; // 流光模式只更新自己的透明度
+
     cfg.is_rounded = m_isRounded;
 
     cfg.glass_render_mode = (m_glassRenderMode == GlassRenderMode::Legacy) ? 1 : 0;
@@ -1966,7 +2239,7 @@ void ModernWindow::updatePowerButtonState(bool running)
     // 仅在毛玻璃模式 (Frosted) 下对抗流光淹没，Legacy 模式保持原始纯粹空灵感
     bool isFrosted = (m_glassRenderMode == GlassRenderMode::Frosted);
     float tintFactor = isFrosted ? (qBound(0, m_tintIntensity, 200) / 100.0f) : 0.0f;
-    
+
     // 恢复极致空灵的基底透明度，并对亮色模式下的边框/背景进行补偿以增强可见性
     int bgAlphaBase = isFrosted ? (m_isDark ? 15 + int(15 * tintFactor) : 20 + int(20 * tintFactor)) : 15;
     int bgAlphaHover = isFrosted ? (m_isDark ? 40 + int(20 * tintFactor) : 50 + int(20 * tintFactor)) : 40;
@@ -1974,26 +2247,33 @@ void ModernWindow::updatePowerButtonState(bool running)
     // 亮色模式下大幅增加边框透明度以解决边缘消失的问题
     int borderAlphaBase = isFrosted ? (m_isDark ? 50 + int(20 * tintFactor) : 90 + int(40 * tintFactor)) : (m_isDark ? 45 : 50);
 
-    auto rgbaStr = [](const QColor &c, int a) {
+    auto rgbaStr = [](const QColor &c, int a)
+    {
         return QString("rgba(%1, %2, %3, %4)").arg(c.red()).arg(c.green()).arg(c.blue()).arg(a);
     };
 
     // 独立取色器：彻底修复非毛玻璃下三巨头被流光（HueShift）污染的问题
-    auto getDynamicColor = [this, isFrosted](const QColor &baseColor) {
+    auto getDynamicColor = [this, isFrosted](const QColor &baseColor)
+    {
         return isFrosted ? shiftHue(baseColor, this->m_hueShift) : baseColor;
     };
 
     // 智能获取高对比度文本颜色 (仅在毛玻璃模式下动态防沉没)
-    auto getTextColor = [isFrosted](const QColor &c, bool dark) {
-        if (!isFrosted) return c.name(); // 非毛玻璃模式保持原色，不干预
-        
+    auto getTextColor = [isFrosted](const QColor &c, bool dark)
+    {
+        if (!isFrosted)
+            return c.name(); // 非毛玻璃模式保持原色，不干预
+
         QColor tc = c;
         int h, s, l, a;
         tc.getHsl(&h, &s, &l, &a);
-        if (dark) {
+        if (dark)
+        {
             // 暗黑模式下，如果是过暗的冷色调(Hue 208等深紫深蓝)，必须大幅拔高亮度(L=200+)穿透暗色背景
-            tc.setHsl(h, qMax(0, s - 10), qMax(l, 200), a); 
-        } else {
+            tc.setHsl(h, qMax(0, s - 10), qMax(l, 200), a);
+        }
+        else
+        {
             // 亮色模式下，必须狠狠压低亮度(L=60-)以抵御白底高光的吞噬
             tc.setHsl(h, qMin(255, s + 30), qMin(l, 55), a);
         }
@@ -2005,16 +2285,16 @@ void ModernWindow::updatePowerButtonState(bool running)
     // ============================================================
     QColor cTest = getDynamicColor(m_isDark ? QColor(255, 105, 180) : QColor(255, 20, 147));
     QString testStyle = QString(
-        "QPushButton { background: %2; border: 1px solid %3; border-radius: %1px; color: %6; font-weight: bold; }"
-        "QPushButton:hover { background: %4; border: 1px solid %6; color: #FFFFFF; }"
-        "QPushButton:pressed { background: %5; }"
-    ).arg(r)
-     .arg(rgbaStr(cTest, bgAlphaBase))
-     .arg(rgbaStr(cTest, borderAlphaBase))
-     .arg(rgbaStr(cTest, bgAlphaHover))
-     .arg(rgbaStr(cTest, bgAlphaPress))
-     .arg(getTextColor(cTest, m_isDark));
-    
+                            "QPushButton { background: %2; border: 1px solid %3; border-radius: %1px; color: %6; font-weight: bold; }"
+                            "QPushButton:hover { background: %4; border: 1px solid %6; color: #FFFFFF; }"
+                            "QPushButton:pressed { background: %5; }")
+                            .arg(r)
+                            .arg(rgbaStr(cTest, bgAlphaBase))
+                            .arg(rgbaStr(cTest, borderAlphaBase))
+                            .arg(rgbaStr(cTest, bgAlphaHover))
+                            .arg(rgbaStr(cTest, bgAlphaPress))
+                            .arg(getTextColor(cTest, m_isDark));
+
     btnTest->setStyleSheet(testStyle);
 
     // ============================================================
@@ -2022,26 +2302,28 @@ void ModernWindow::updatePowerButtonState(bool running)
     // ============================================================
     QColor cStop = getDynamicColor(m_isDark ? QColor(255, 51, 102) : QColor(220, 20, 60));
     QString stopStyle = QString(
-        "QPushButton { background: %2; border: 1px solid %3; color: %6; font-weight: bold; border-radius: %1px; }"
-        "QPushButton:hover { background: %4; border: 1px solid %6; color: #FFFFFF; }"
-        "QPushButton:pressed { background: %5; }"
-        "QPushButton:disabled { background: transparent; border: 1px solid rgba(128, 128, 128, 25); color: rgba(128, 128, 128, 80); }"
-    ).arg(r)
-     .arg(rgbaStr(cStop, bgAlphaBase))
-     .arg(rgbaStr(cStop, borderAlphaBase))
-     .arg(rgbaStr(cStop, bgAlphaHover))
-     .arg(rgbaStr(cStop, bgAlphaPress))
-     .arg(getTextColor(cStop, m_isDark));
-    
+                            "QPushButton { background: %2; border: 1px solid %3; color: %6; font-weight: bold; border-radius: %1px; }"
+                            "QPushButton:hover { background: %4; border: 1px solid %6; color: #FFFFFF; }"
+                            "QPushButton:pressed { background: %5; }"
+                            "QPushButton:disabled { background: transparent; border: 1px solid rgba(128, 128, 128, 25); color: rgba(128, 128, 128, 80); }")
+                            .arg(r)
+                            .arg(rgbaStr(cStop, bgAlphaBase))
+                            .arg(rgbaStr(cStop, borderAlphaBase))
+                            .arg(rgbaStr(cStop, bgAlphaHover))
+                            .arg(rgbaStr(cStop, bgAlphaPress))
+                            .arg(getTextColor(cStop, m_isDark));
+
     btnStop->setStyleSheet(stopStyle);
 
     // ============================================================
     // 3. 电源按钮 (BtnPower): 动态呼吸与主题深度融合 -> 动态色相保持对比度
     // ============================================================
-    // 清理旧动画
-    QVariantAnimation *oldAnim = btnPower->findChild<QVariantAnimation *>("powerAnim");
-    if (oldAnim)
+    // 清理旧动画：必须清理全部同名实例，防止长时间热重载后脉冲动画叠加导致频率紊乱
+    const QList<QVariantAnimation *> oldAnims = btnPower->findChildren<QVariantAnimation *>("powerAnim");
+    for (QVariantAnimation *oldAnim : oldAnims)
     {
+        if (!oldAnim)
+            continue;
         oldAnim->stop();
         oldAnim->deleteLater();
     }
@@ -2053,9 +2335,9 @@ void ModernWindow::updatePowerButtonState(bool running)
 
         QVariantAnimation *pulseAnim = new QVariantAnimation(btnPower);
         pulseAnim->setObjectName("powerAnim");
-        pulseAnim->setDuration(2500);       // 延长至2.5秒，呼吸感更深邃优雅
-        pulseAnim->setStartValue(borderAlphaBase);       // 边框最低透明度
-        pulseAnim->setKeyValueAt(0.5, 220); // 边框最高透明度 (峰值极亮)
+        pulseAnim->setDuration(2500);              // 延长至2.5秒，呼吸感更深邃优雅
+        pulseAnim->setStartValue(borderAlphaBase); // 边框最低透明度
+        pulseAnim->setKeyValueAt(0.5, 220);        // 边框最高透明度 (峰值极亮)
         pulseAnim->setEndValue(borderAlphaBase);
         pulseAnim->setLoopCount(-1);
         pulseAnim->setEasingCurve(QEasingCurve::InOutSine);
@@ -2075,26 +2357,25 @@ void ModernWindow::updatePowerButtonState(bool running)
                 "QPushButton:hover { background: %4; color: #FFF; border: 1px solid %5; }"
             ).arg(rgbaBg).arg(rgbaBorder).arg(r).arg(rgbaHover).arg(getTextColor(cPowerRun, this->m_isDark));
             
-            btnPower->setStyleSheet(qss); 
-        });
+            btnPower->setStyleSheet(qss); });
         pulseAnim->start();
     }
     else
     {
         // >>> 停止状态 (Start): 呼应核心主题色 <<<
         btnPower->setText(STR_START[m_lang]);
-        
+
         QColor cPowerStop = getDynamicColor(m_isDark ? QColor(255, 140, 0) : QColor(148, 0, 211));
         QString startStyle = QString(
-            "QPushButton { background: %2; border: 1px solid %3; border-radius: %1px; color: %6; font-weight: bold; }"
-            "QPushButton:hover { background: %4; border: 1px solid %6; color: #FFFFFF; }"
-            "QPushButton:pressed { background: %5; }"
-        ).arg(r)
-         .arg(rgbaStr(cPowerStop, bgAlphaBase))
-         .arg(rgbaStr(cPowerStop, borderAlphaBase))
-         .arg(rgbaStr(cPowerStop, bgAlphaHover))
-         .arg(rgbaStr(cPowerStop, bgAlphaPress))
-         .arg(getTextColor(cPowerStop, m_isDark));
+                                 "QPushButton { background: %2; border: 1px solid %3; border-radius: %1px; color: %6; font-weight: bold; }"
+                                 "QPushButton:hover { background: %4; border: 1px solid %6; color: #FFFFFF; }"
+                                 "QPushButton:pressed { background: %5; }")
+                                 .arg(r)
+                                 .arg(rgbaStr(cPowerStop, bgAlphaBase))
+                                 .arg(rgbaStr(cPowerStop, borderAlphaBase))
+                                 .arg(rgbaStr(cPowerStop, bgAlphaHover))
+                                 .arg(rgbaStr(cPowerStop, bgAlphaPress))
+                                 .arg(getTextColor(cPowerStop, m_isDark));
 
         btnPower->setStyleSheet(startStyle);
     }
@@ -2125,13 +2406,13 @@ void ModernWindow::updateLog(QString msg)
             msg.replace("多行模式：", "Batch Mode: ");
             msg.replace("多行模式", "Batch Mode");
         }
-        if (msg.contains("提取换行"))
+        if (msg.contains("保留换行"))
         {
             msg.replace("已开启", "ON");
             msg.replace("已关闭", "OFF");
-            msg.replace("提取换行: ", "Extract Newlines: ");
-            msg.replace("提取换行：", "Extract Newlines: ");
-            msg.replace("提取换行", "Extract Newlines");
+            msg.replace("保留换行: ", "Keep \\n: ");
+            msg.replace("保留换行：", "Keep \\n: ");
+            msg.replace("保留换行", "Keep \\n");
         }
         if (msg.contains("文本处理"))
         {
@@ -2165,12 +2446,12 @@ void ModernWindow::updateLog(QString msg)
             msg.replace("HandleRichText: ", "文本处理: ");
             msg.replace("HandleRichText", "文本处理");
         }
-        if (msg.contains("Extract Newlines"))
+        if (msg.contains("Keep \\n"))
         {
             msg.replace("ON", "已开启");
             msg.replace("OFF", "已关闭");
-            msg.replace("Extract Newlines: ", "提取换行: ");
-            msg.replace("Extract Newlines", "提取换行");
+            msg.replace("Keep \\n: ", "保留换行: ");
+            msg.replace("Keep \\n", "保留换行");
         }
     }
 
@@ -2410,7 +2691,7 @@ void ModernWindow::onApiComboContextMenu(const QPoint &pos)
 {
     // 只在点击下拉框自身（而不是LineEdit）时响应
     QMenu menu(this);
-    
+
     // 🌟 注入流光级动态透明样式
     menu.setAttribute(Qt::WA_TranslucentBackground);
     menu.setWindowFlags(menu.windowFlags() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint);
@@ -2430,33 +2711,38 @@ void ModernWindow::onApiComboContextMenu(const QPoint &pos)
     menu.setStyleSheet(menuStyle);
 
     QAction *actDelete = menu.addAction(m_lang == 1 ? "🗑️ 删除此预设" : "🗑️ Delete Preset");
-    
+
     QAction *sel = menu.exec(apiAddressCombo->mapToGlobal(pos));
-    if (sel == actDelete) {
+    if (sel == actDelete)
+    {
         QString currentUrl = apiAddressCombo->currentText();
-        
+
         // 禁止删除加号以及内置预设
         bool isBuiltIn = false;
         int presetSize = sizeof(MODERN_PRESETS) / sizeof(LocalApiPreset);
-        for (int p = 0; p < presetSize; ++p) {
-            if (currentUrl == MODERN_PRESETS[p].url) {
+        for (int p = 0; p < presetSize; ++p)
+        {
+            if (currentUrl == MODERN_PRESETS[p].url)
+            {
                 isBuiltIn = true;
                 break;
             }
         }
-        
-        if (currentUrl == "+" || isBuiltIn) {
+
+        if (currentUrl == "+" || isBuiltIn)
+        {
             GlassMessageBox::warning(this, m_lang == 1 ? "无法删除" : "Cannot Delete",
-                               m_lang == 1 ? "内置预设与默认选项无法删除。" : "Built-in presets and default options cannot be deleted.",
-                               m_isDark, m_alpha, m_isRounded, m_glassRenderMode, m_hueShift, m_tintIntensity);
+                                     m_lang == 1 ? "内置预设与默认选项无法删除。" : "Built-in presets and default options cannot be deleted.",
+                                     m_isDark, m_alpha, m_isRounded, m_glassRenderMode, m_hueShift, m_tintIntensity);
             return;
         }
 
         int reply = QMessageBox::question(this, m_lang == 1 ? "确认删除" : "Confirm Deletion",
-                                        (m_lang == 1 ? "确定要删除以下自定义 API 预设吗？\n" : "Are you sure you want to delete this custom API preset?\n") + currentUrl,
-                                        QMessageBox::Yes | QMessageBox::No);
-                                        
-        if (reply == QMessageBox::Yes) {
+                                          (m_lang == 1 ? "确定要删除以下自定义 API 预设吗？\n" : "Are you sure you want to delete this custom API preset?\n") + currentUrl,
+                                          QMessageBox::Yes | QMessageBox::No);
+
+        if (reply == QMessageBox::Yes)
+        {
             AppConfig cfg = ConfigManager::loadConfig();
             const QString normalizedCurrentUrl = normalizeApiBaseUrl(currentUrl);
             const QString fallbackUrl = QString(MODERN_PRESETS[0].url);
@@ -2477,10 +2763,11 @@ void ModernWindow::onApiComboContextMenu(const QPoint &pos)
             ConfigManager::removeApiKeyForBaseUrl(currentUrl, "config.ini");
             ConfigManager::removeModelForBaseUrl(currentUrl, "config.ini");
             ConfigManager::removePresetNameForBaseUrl(currentUrl, "config.ini");
-            
+
             // 从UI中移除
             int idx = apiAddressCombo->findText(currentUrl);
-            if (idx != -1) {
+            if (idx != -1)
+            {
                 apiAddressCombo->removeItem(idx);
                 apiAddressCombo->setCurrentIndex(0);
             }
@@ -2571,28 +2858,34 @@ void ModernWindow::paintEvent(QPaintEvent *)
         QColor tintedLight(245, 240, 250, m_alpha);
 
         QColor frostedBase;
-        if (m_isDark) {
+        if (m_isDark)
+        {
             frostedBase.setRed(colorlessDark.red() + (tintedDark.red() - colorlessDark.red()) * tint);
             frostedBase.setGreen(colorlessDark.green() + (tintedDark.green() - colorlessDark.green()) * tint);
             frostedBase.setBlue(colorlessDark.blue() + (tintedDark.blue() - colorlessDark.blue()) * tint);
             frostedBase.setAlpha(m_alpha);
-        } else {
+        }
+        else
+        {
             frostedBase.setRed(colorlessLight.red() + (tintedLight.red() - colorlessLight.red()) * tint);
             frostedBase.setGreen(colorlessLight.green() + (tintedLight.green() - colorlessLight.green()) * tint);
             frostedBase.setBlue(colorlessLight.blue() + (tintedLight.blue() - colorlessLight.blue()) * tint);
             frostedBase.setAlpha(m_alpha);
         }
-        
+
         p.setBrush(frostedBase);
         p.setPen(Qt::NoPen);
         p.drawRoundedRect(rect, r, r);
 
         // 1. 左侧大面积青蓝/孔雀绿光晕 (Tinted Cyan Glow)
         QRadialGradient cyanGlow(rect.width() * 0.1, rect.height() * 0.4, rect.width() * 0.8);
-        if (m_isDark) {
+        if (m_isDark)
+        {
             cyanGlow.setColorAt(0.0, shiftHue(QColor(0, 160, 210, 80 * a * tint), m_hueShift));
             cyanGlow.setColorAt(1.0, QColor(0, 160, 210, 0));
-        } else {
+        }
+        else
+        {
             cyanGlow.setColorAt(0.0, shiftHue(QColor(0, 200, 255, 110 * a * tint), m_hueShift));
             cyanGlow.setColorAt(1.0, QColor(0, 200, 255, 0));
         }
@@ -2601,10 +2894,13 @@ void ModernWindow::paintEvent(QPaintEvent *)
 
         // 2. 右侧大面积橙色/琥珀色光晕 (Tinted Orange Glow)
         QRadialGradient orangeGlow(rect.width() * 0.8, rect.height() * 0.2, rect.width() * 0.7);
-        if (m_isDark) {
+        if (m_isDark)
+        {
             orangeGlow.setColorAt(0.0, shiftHue(QColor(210, 95, 10, 75 * a * tint), m_hueShift));
             orangeGlow.setColorAt(1.0, QColor(210, 95, 10, 0));
-        } else {
+        }
+        else
+        {
             orangeGlow.setColorAt(0.0, shiftHue(QColor(255, 150, 50, 90 * a * tint), m_hueShift));
             orangeGlow.setColorAt(1.0, QColor(255, 150, 50, 0));
         }
@@ -2613,10 +2909,13 @@ void ModernWindow::paintEvent(QPaintEvent *)
 
         // 3. 底部大面积紫红/洋红光晕 (Tinted Purple Glow)
         QRadialGradient purpleGlow(rect.width() * 0.5, rect.height() * 0.9, rect.width() * 0.8);
-        if (m_isDark) {
+        if (m_isDark)
+        {
             purpleGlow.setColorAt(0.0, shiftHue(QColor(130, 10, 150, 85 * a * tint), m_hueShift));
             purpleGlow.setColorAt(1.0, QColor(130, 10, 150, 0));
-        } else {
+        }
+        else
+        {
             purpleGlow.setColorAt(0.0, shiftHue(QColor(220, 100, 240, 100 * a * tint), m_hueShift));
             purpleGlow.setColorAt(1.0, QColor(220, 100, 240, 0));
         }
@@ -2913,23 +3212,23 @@ void ModernWindow::showEvent(QShowEvent *event)
 
     // ============================================================
     // 🚀 CAN FIX: 彻底移除 Y 轴的 40px 偏移滑动，仅保留透明度淡入
-    // 这样当 main.cpp 播放闪光掩护时，流光窗口就在原地浮现，稳如泰山！
     // ============================================================
 
     if (this->property("bypass_fade").toBool())
     {
+        // 🌟 流光模式的 OS 级透明度必须永远为 1.0！(由画笔接管半透)
         this->setWindowOpacity(1.0);
         this->setProperty("bypass_fade", false); // 用完即焚
     }
     else
     {
-
         this->setWindowOpacity(0.0); // 初始设为全透明
 
         // 仅保留淡入动画 (时长 400ms，完美配合 main.cpp 的闪烁掩护)
         QPropertyAnimation *fadeAnim = new QPropertyAnimation(this, "windowOpacity");
         fadeAnim->setDuration(400);
         fadeAnim->setStartValue(0.0);
+        // 🌟 恢复为 1.0！背景透不透由 QPainter 决定，不再截断 OS 上限！
         fadeAnim->setEndValue(1.0);
         fadeAnim->setEasingCurve(QEasingCurve::OutQuad);
         fadeAnim->start(QAbstractAnimation::DeleteWhenStopped);
@@ -2962,10 +3261,15 @@ void ModernWindow::onOpacityChange(int v)
         static_cast<GlossaryDrawer *>(m_glossaryDrawer.data())->setAlpha(m_alpha);
     }
 
+    // 🔥 同步透明度到环境扫描窗口
+    if (m_envScanWindow)
+        m_envScanWindow->updateAlpha(m_alpha);
+
     update(); // 重绘主窗口 | Repaint main window
-    
+
     // 🎨 调色板实时刷新
-    if (m_palettePopup) {
+    if (m_palettePopup)
+    {
         m_palettePopup->update();
     }
 }
@@ -2989,10 +3293,12 @@ void ModernWindow::toggleLanguage()
                          m_server->updateConfig(c);
                      }
 
-                     if (m_glossaryDrawer)
-                     {
-                         static_cast<GlossaryDrawer *>(m_glossaryDrawer.data())->updateLanguage(m_lang);
-                     } });
+                      if (m_glossaryDrawer)
+                      {
+                          static_cast<GlossaryDrawer *>(m_glossaryDrawer.data())->updateLanguage(m_lang);
+                      }
+
+                      if (m_envScanWindow) m_envScanWindow->updateLanguage(m_lang); });
 }
 
 // 切换回经典模式 | Switch back to Classic Mode
@@ -3005,6 +3311,17 @@ void ModernWindow::onSwitchClicked()
         m_glossaryDrawer->close();
     }
 
+    // 关闭扫描窗口，防止切换主题后残留
+    if (m_envScanWindow)
+    {
+        m_envScanWindow->close();
+    }
+
+    if (auto *advDlg = this->findChild<AdvancedSettingsDialog *>())
+    {
+        advDlg->close();
+    }
+
     if (m_server)
         m_server->updateConfig(getUiConfig());
 
@@ -3012,77 +3329,6 @@ void ModernWindow::onSwitchClicked()
 }
 
 // 🌊 专属局部类：全息扫描覆盖层 (Holographic Scanner Wave)
-// ==========================================
-class RippleOverlay : public QWidget
-{
-public:
-    QPixmap m_pixmap;
-    QPoint m_center;
-    float m_radius = 0;
-    bool m_isDarkTarget = true; // 用于决定光波的色调
-
-    RippleOverlay(const QPixmap &pix, const QPoint &center, QWidget *parent = nullptr)
-        : QWidget(parent), m_pixmap(pix), m_center(center)
-    {
-        setAttribute(Qt::WA_TransparentForMouseEvents);
-        setAttribute(Qt::WA_TranslucentBackground);
-    }
-
-protected:
-    void paintEvent(QPaintEvent *) override
-    {
-        QPainter p(this);
-        p.setRenderHint(QPainter::Antialiasing);
-        p.setRenderHint(QPainter::SmoothPixmapTransform);
-
-        // 1. 物理剪裁旧界面
-        QPainterPath path;
-        path.addRect(rect());
-        path.addEllipse(QPointF(m_center), m_radius, m_radius);
-        p.setClipPath(path);
-
-        // 🔥 关键修正 1：防止新 UI 从半透明背景“透底”混色！
-        p.setCompositionMode(QPainter::CompositionMode_Source);
-        p.drawPixmap(0, 0, m_pixmap);
-        p.setCompositionMode(QPainter::CompositionMode_SourceOver); // 恢复正常模式
-
-        p.setClipping(false);
-
-        // ==========================================
-        // 🌟 核心视觉升级：全息能量洗刷波
-        // ==========================================
-        if (m_radius > 0)
-        {
-            float waveFront = m_radius + 5.0f;
-            float waveTail = std::max(0.0f, m_radius - 70.0f);
-            if (waveFront <= 0)
-                return;
-
-            QRadialGradient grad(m_center, waveFront);
-            float cutStop = m_radius / waveFront;
-            float tailStop = waveTail / waveFront;
-
-            QColor coreColor = m_isDarkTarget ? QColor(255, 120, 0, 255) : QColor(148, 0, 211, 220);
-            QColor midColor = m_isDarkTarget ? QColor(255, 120, 0, 90) : QColor(148, 0, 211, 90);
-
-            grad.setColorAt(1.0, Qt::transparent);
-            grad.setColorAt(qMin(1.0f, cutStop + 0.015f), coreColor);
-            grad.setColorAt(cutStop, coreColor);
-
-            if (tailStop > 0 && tailStop < cutStop)
-            {
-                grad.setColorAt(std::max(tailStop, cutStop - 0.15f), midColor);
-                grad.setColorAt(tailStop, Qt::transparent);
-            }
-            grad.setColorAt(0.0, Qt::transparent);
-
-            p.setBrush(grad);
-            p.setPen(Qt::NoPen);
-            p.drawEllipse(QPointF(m_center), waveFront, waveFront);
-        }
-    }
-};
-
 // ==========================================
 // 🎨 平滑切换动画 (一触即发·扫描洗刷 | Holographic Reveal)
 // ==========================================
@@ -3110,8 +3356,6 @@ void ModernWindow::smoothSwitch(std::function<void()> changeLogic)
     RippleOverlay *drawerOverlay = nullptr;
     if (m_glossaryDrawer)
     {
-        // 关键点：对于副窗口，震中坐标必须映射到副窗口的坐标系中
-        // 即使点击点在主窗口，映射后的 drawerCenter 可能是 (-500, 100)，这正是我们要的“波源在外部”的效果
         QPoint drawerCenter = m_glossaryDrawer->mapFromGlobal(globalPos);
         drawerOverlay = new RippleOverlay(m_glossaryDrawer->grab(), drawerCenter, m_glossaryDrawer.data());
         drawerOverlay->setGeometry(m_glossaryDrawer->rect());
@@ -3120,32 +3364,61 @@ void ModernWindow::smoothSwitch(std::function<void()> changeLogic)
         drawerOverlay->raise();
     }
 
+    RippleOverlay *envScanOverlay = nullptr;
+    if (m_envScanWindow)
+    {
+        QPoint envScanCenter = m_envScanWindow->mapFromGlobal(globalPos);
+        envScanOverlay = new RippleOverlay(m_envScanWindow->grab(), envScanCenter, m_envScanWindow.data());
+        envScanOverlay->setGeometry(m_envScanWindow->rect());
+        envScanOverlay->setStyleSheet("background: transparent; border: none;");
+        envScanOverlay->show();
+        envScanOverlay->raise();
+    }
+
+    // 🌟 新增：高级设置窗口的光波蒙版！
+    RippleOverlay *advOverlay = nullptr;
+    AdvancedSettingsDialog *advDlg = this->findChild<AdvancedSettingsDialog *>();
+    if (advDlg)
+    {
+        QPoint advCenter = advDlg->mapFromGlobal(globalPos);
+        advOverlay = new RippleOverlay(advDlg->grab(), advCenter, advDlg);
+        advOverlay->setGeometry(advDlg->rect());
+        advOverlay->setStyleSheet("background: transparent; border: none;");
+        advOverlay->show();
+        advOverlay->raise();
+    }
+
     // ============================================================
     // 🚨 核心排队修正 2：强制优先绘制旧画面！
     // ============================================================
     overlay->repaint();
     if (drawerOverlay)
         drawerOverlay->repaint();
+    if (envScanOverlay)
+        envScanOverlay->repaint();
+    if (advOverlay)
+        advOverlay->repaint(); // 🌟 强刷旧画面
     QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 
     // ============================================================
     // 🚨 核心排队修正 3：将“耗时的 UI 替换”挂起到下一帧
     // ============================================================
-    QTimer::singleShot(15, this, [this, overlay, drawerOverlay, globalPos, changeLogic]()
+    QTimer::singleShot(15, this, [this, overlay, drawerOverlay, envScanOverlay, advOverlay, advDlg, globalPos, changeLogic]()
                        {
         // 3. 瞬间执行极其耗时的切换逻辑
         changeLogic();
 
-        // 4. 将新的主题状态注入光波覆盖层
+        // 4. 将新的主题状态注入光波覆盖层，用于决定波纹光圈的颜色
         overlay->m_isDarkTarget = this->m_isDark;
         if (drawerOverlay) drawerOverlay->m_isDarkTarget = this->m_isDark;
+        if (envScanOverlay) envScanOverlay->m_isDarkTarget = this->m_isDark;
+        if (advOverlay) advOverlay->m_isDarkTarget = this->m_isDark; // 🌟 注入颜色
 
         // 强行让底层主窗口将新 UI 画入显存
         this->repaint();
 
         // ============================================================
         // 🔥 CAN FIX: 全局覆盖半径计算逻辑
-        // 以前只计算了主窗口，现在我们需要计算“震源”到“所有窗口最远角落”的距离
         // ============================================================
         auto calculateMaxDistance = [](QWidget* w, QPoint globalP) -> double {
             if (!w) return 0.0;
@@ -3153,54 +3426,45 @@ void ModernWindow::smoothSwitch(std::function<void()> changeLogic)
             int width = w->width();
             int height = w->height();
             
-            // 计算点击点到矩形四个角的欧几里得距离，取最大值
-            double d1 = std::hypot(localP.x(), localP.y());                   // 左上
-            double d2 = std::hypot(width - localP.x(), localP.y());           // 右上
-            double d3 = std::hypot(width - localP.x(), height - localP.y());  // 右下
-            double d4 = std::hypot(localP.x(), height - localP.y());          // 左下
+            double d1 = std::hypot(localP.x(), localP.y());                   
+            double d2 = std::hypot(width - localP.x(), localP.y());           
+            double d3 = std::hypot(width - localP.x(), height - localP.y());  
+            double d4 = std::hypot(localP.x(), height - localP.y());          
             
             return std::max({d1, d2, d3, d4});
         };
 
-        // 计算主窗口所需半径
         double radiusMain = calculateMaxDistance(this, globalPos);
-        
-        // 计算抽屉窗口所需半径 (如果存在)
-        double radiusDrawer = 0.0;
-        if (m_glossaryDrawer) {
-            radiusDrawer = calculateMaxDistance(m_glossaryDrawer.data(), globalPos);
-        }
+        double radiusDrawer = m_glossaryDrawer ? calculateMaxDistance(m_glossaryDrawer.data(), globalPos) : 0.0;
+        double radiusEnvScan = m_envScanWindow ? calculateMaxDistance(m_envScanWindow.data(), globalPos) : 0.0;
+        double radiusAdv = advDlg ? calculateMaxDistance(advDlg, globalPos) : 0.0; // 🌟 计算高级设置窗的远角
 
-        // 🔥 最终半径取两者之大，并额外加 50px 缓冲，确保波纹彻底扫出屏幕
-        double finalMaxRadius = std::max(radiusMain, radiusDrawer) + 50.0;
+        // 🔥 最终半径取四者之大，并额外加 50px 缓冲
+        double finalMaxRadius = std::max({radiusMain, radiusDrawer, radiusEnvScan, radiusAdv}) + 50.0;
 
         // 5. 驱动「全息扫描」引擎
         QVariantAnimation *anim = new QVariantAnimation(this);
-        // 半径变大了，为了保持视觉速度一致，如果距离特别远，稍微增加一点点时长
         int duration = (finalMaxRadius > 1000) ? 650 : 550; 
         
         anim->setDuration(duration); 
         anim->setStartValue(0.0f);
         anim->setEndValue((float)finalMaxRadius);
-        
         anim->setEasingCurve(QEasingCurve::InOutCubic); 
 
-        connect(anim, &QVariantAnimation::valueChanged, [overlay, drawerOverlay ](const QVariant& val){
+        // 🌟 将半径数值逐帧送给所有覆盖层，实现光波的同步扩张！
+        connect(anim, &QVariantAnimation::valueChanged, [overlay, drawerOverlay, envScanOverlay, advOverlay](const QVariant& val){
             float r = val.toFloat();
-            overlay->m_radius = r;
-            overlay->update();
-            // 两个 Overlay 共享同一个半径 r
-            // 因为它们的 m_center 都是基于同一个 globalPos 算出来的相对坐标
-            // 所以视觉上波纹会无缝连接，像是一个巨大的圆环穿过两个分离的窗口
-            if(drawerOverlay) {
-                drawerOverlay->m_radius = r;
-                drawerOverlay->update();
-            }
+            overlay->setRadius(r);
+            if(drawerOverlay) drawerOverlay->setRadius(r);
+            if(envScanOverlay) envScanOverlay->setRadius(r);
+            if(advOverlay) advOverlay->setRadius(r); 
         });
 
-        connect(anim, &QVariantAnimation::finished, [this, overlay, drawerOverlay, anim](){
+        connect(anim, &QVariantAnimation::finished, [this, overlay, drawerOverlay, envScanOverlay, advOverlay, anim](){
             overlay->deleteLater();
             if(drawerOverlay) drawerOverlay->deleteLater();
+            if(envScanOverlay) envScanOverlay->deleteLater();
+            if(advOverlay) advOverlay->deleteLater(); // 🌟 功成身退，销毁蒙版
             anim->deleteLater();
             
             this->setProperty("is_switching", false); 
@@ -3280,7 +3544,9 @@ void ModernWindow::toggleTheme()
         
         // 🔥 CAN 绝杀：强制重置光标，瞬间抹杀 Qt 视口偏移 Bug！
         resetAllCursors(); 
-        updatePowerButtonState(m_isServerRunning); });
+        updatePowerButtonState(m_isServerRunning); 
+
+        if (m_envScanWindow) m_envScanWindow->updateTheme(m_isDark); });
 }
 
 // 切换形状 | Toggle Shape
@@ -3305,6 +3571,8 @@ void ModernWindow::toggleShape()
         if (m_glossaryDrawer) {
             static_cast<GlossaryDrawer*>(m_glossaryDrawer.data())->updateEnv(m_isDark, m_alpha, m_isRounded);
         }
+        
+        if (m_envScanWindow) m_envScanWindow->updateRounded(m_isRounded);
         
         update();
         
@@ -3339,6 +3607,7 @@ void ModernWindow::toggleDebugMode()
     }
 }
 
+// 🎨 切换毛玻璃渲染模式 | Toggle Glass Render Mode
 // 🎨 切换毛玻璃渲染模式 | Toggle Glass Render Mode
 void ModernWindow::toggleGlassStyle()
 {
@@ -3418,13 +3687,28 @@ void ModernWindow::toggleGlassStyle()
         if (modelCombo) modelCombo->setRenderMode(m_glassRenderMode);
         if (glossaryCombo) glossaryCombo->setRenderMode(m_glassRenderMode);
         
-        // 更新界面的提示文本 (同步鼠标悬浮的字典提示)
-        updateUIText();
-
-        // 如果悬浮窗开启也需要更新
+        // 同步悬浮抽屉
         if (m_glossaryDrawer) {
             static_cast<GlossaryDrawer*>(m_glossaryDrawer.data())->setRenderMode(m_glassRenderMode);
         }
+
+        // ============================================================
+        // 🌟 核心修复 1：同步环境检测窗口
+        // ============================================================
+        if (m_envScanWindow) {
+            m_envScanWindow->setGlassParams(static_cast<int>(m_glassRenderMode), m_hueShift, m_tintIntensity);
+        }
+
+        // ============================================================
+        // 🌟 核心修复 2：将新的渲染模式（毛玻璃/发光）实时推给高级设置窗口！
+        // ============================================================
+        if (auto* advDlg = this->findChild<AdvancedSettingsDialog*>()) {
+            int rm = (m_glassRenderMode == GlassRenderMode::Frosted) ? 0 : 1;
+            advDlg->updateGlassEnv(m_isDark, m_alpha, m_storedIsRounded, rm, m_hueShift, m_tintIntensity);
+        }
+
+        // 更新界面的提示文本 (同步鼠标悬浮的字典提示)
+        updateUIText();
         
         // 强制重绘主窗口
         update(); });
@@ -3438,7 +3722,8 @@ void ModernWindow::onHueChanged(int hueOffset)
     updatePowerButtonState(m_isServerRunning);
     update();
     // 🎨 调色板实时刷新
-    if (m_palettePopup) {
+    if (m_palettePopup)
+    {
         m_palettePopup->update();
     }
 }
@@ -3451,28 +3736,31 @@ void ModernWindow::onTintIntensityChanged(int intensity)
     updatePowerButtonState(m_isServerRunning);
     update();
     // 🎨 调色板实时刷新
-    if (m_palettePopup) {
+    if (m_palettePopup)
+    {
         m_palettePopup->update();
     }
 }
 
 // 🎨 调色板实时同步适配器（持有主窗口指针，动态读取参数）
-class PaletteUpdateAdapter : public QObject {
+class PaletteUpdateAdapter : public QObject
+{
 public:
     PaletteUpdateAdapter(QWidget *popup, ModernWindow *mainWin, QObject *parent = nullptr)
         : QObject(parent), m_popup(popup), m_mainWin(mainWin)
     {
-        if (mainWin) {
+        if (mainWin)
+        {
             // 连接信号，确保窗口销毁时清空指针
-            connect(mainWin, &ModernWindow::destroyed, this, [this]() {
-                m_mainWin = nullptr;
-            });
+            connect(mainWin, &ModernWindow::destroyed, this, [this]()
+                    { m_mainWin = nullptr; });
         }
     }
 
     void startOpenAnimation()
     {
-        if (!m_popup) {
+        if (!m_popup)
+        {
             return;
         }
 
@@ -3503,18 +3791,19 @@ public:
         opacityAnim->setEndValue(1.0);
         opacityAnim->setEasingCurve(QEasingCurve::OutQuad);
 
-        connect(group, &QParallelAnimationGroup::finished, m_popup, [this]() {
+        connect(group, &QParallelAnimationGroup::finished, m_popup, [this]()
+                {
             if (m_popup) {
                 m_popup->setWindowOpacity(1.0);
-            }
-        });
+            } });
 
         group->start(QAbstractAnimation::DeleteWhenStopped);
     }
 
     void startCloseAnimation()
     {
-        if (!m_popup || m_isClosing) {
+        if (!m_popup || m_isClosing)
+        {
             return;
         }
 
@@ -3542,18 +3831,20 @@ public:
         opacityAnim->setEndValue(0.0);
         opacityAnim->setEasingCurve(QEasingCurve::InQuad);
 
-        connect(group, &QParallelAnimationGroup::finished, m_popup, [this]() {
+        connect(group, &QParallelAnimationGroup::finished, m_popup, [this]()
+                {
             if (m_popup) {
                 m_popup->close();
-            }
-        });
+            } });
 
         group->start(QAbstractAnimation::DeleteWhenStopped);
     }
 
-    bool eventFilter(QObject *obj, QEvent *ev) override {
-        if (ev->type() == QEvent::Paint && m_mainWin && m_popup) {
-            QWidget *w = static_cast<QWidget*>(obj);
+    bool eventFilter(QObject *obj, QEvent *ev) override
+    {
+        if (ev->type() == QEvent::Paint && m_mainWin && m_popup)
+        {
+            QWidget *w = static_cast<QWidget *>(obj);
             QPainter p(w);
             p.setRenderHint(QPainter::Antialiasing);
             QRect r = w->rect();
@@ -3565,40 +3856,47 @@ public:
             int hueShift = m_mainWin->getHueShift();
             int tintIntensity = m_mainWin->getTintIntensity();
             GlassRenderMode mode = m_mainWin->getGlassRenderMode();
-            
+
             int rds = isRounded ? 12 : 0;
 
             // 🌫️ 使用与主窗相同的渲染参数
-            if (mode == GlassRenderMode::Frosted) {
+            if (mode == GlassRenderMode::Frosted)
+            {
                 drawMenuGlassEffect(p, r, isDark, alpha, rds, hueShift, tintIntensity);
-            } else {
+            }
+            else
+            {
                 drawLegacyGlowEffect(p, r, isDark, alpha, rds, 1.0f);
             }
 
             // 💎 增强边框质感：使用彩虹渐变描边，实时响应 hueShift
             QLinearGradient borderGrad(r.topLeft(), r.bottomRight());
-            if (isDark) {
+            if (isDark)
+            {
                 // 深色模式：使用 hueShift 调整色彩
-                QColor c1 = shiftHue(QColor(255, 140, 0, 200), hueShift);     // 橙色主调
-                QColor c2 = shiftHue(QColor(100, 200, 255, 180), hueShift);   // 青色辅调
-                QColor c3 = shiftHue(QColor(255, 100, 200, 200), hueShift);   // 粉紫色
+                QColor c1 = shiftHue(QColor(255, 140, 0, 200), hueShift);   // 橙色主调
+                QColor c2 = shiftHue(QColor(100, 200, 255, 180), hueShift); // 青色辅调
+                QColor c3 = shiftHue(QColor(255, 100, 200, 200), hueShift); // 粉紫色
                 borderGrad.setColorAt(0.0, c1);
                 borderGrad.setColorAt(0.5, c2);
                 borderGrad.setColorAt(1.0, c3);
-            } else {
+            }
+            else
+            {
                 // 亮色模式
-                QColor c1 = shiftHue(QColor(147, 0, 211, 240), hueShift);     // 紫色主调
-                QColor c2 = shiftHue(QColor(100, 150, 255, 200), hueShift);   // 蓝色辅调
-                QColor c3 = shiftHue(QColor(200, 80, 180, 240), hueShift);    // 粉色
+                QColor c1 = shiftHue(QColor(147, 0, 211, 240), hueShift);   // 紫色主调
+                QColor c2 = shiftHue(QColor(100, 150, 255, 200), hueShift); // 蓝色辅调
+                QColor c3 = shiftHue(QColor(200, 80, 180, 240), hueShift);  // 粉色
                 borderGrad.setColorAt(0.0, c1);
                 borderGrad.setColorAt(0.5, c2);
                 borderGrad.setColorAt(1.0, c3);
             }
             p.setPen(QPen(borderGrad, 2.5));
             p.drawRoundedRect(r.adjusted(1, 1, -1, -1), rds, rds);
-            
+
             // 💡 额外：顶部光晕
-            if (alpha > 100) {
+            if (alpha > 100)
+            {
                 QLinearGradient topGlow(r.topLeft(), r.topLeft() + QPoint(0, 20));
                 topGlow.setColorAt(0.0, QColor(255, 255, 255, 60));
                 topGlow.setColorAt(1.0, QColor(255, 255, 255, 0));
@@ -3606,10 +3904,11 @@ public:
                 p.setPen(Qt::NoPen);
                 p.drawPath(createTopGlowPath(r, rds));
             }
-            
+
             return true;
         }
-        if (ev->type() == QEvent::WindowDeactivate && m_popup) {
+        if (ev->type() == QEvent::WindowDeactivate && m_popup)
+        {
             startCloseAnimation();
             return true;
         }
@@ -3618,7 +3917,8 @@ public:
 
 private:
     // 创建顶部高光路径
-    static QPainterPath createTopGlowPath(const QRect &rect, int radius) {
+    static QPainterPath createTopGlowPath(const QRect &rect, int radius)
+    {
         QPainterPath path;
         int h = 20;
         path.moveTo(rect.left() + radius, rect.top());
@@ -3640,10 +3940,14 @@ private:
 // 🎨 展开全局调色盘悬浮窗（支持实时渲染）
 void ModernWindow::toggleHuePalette()
 {
-    if (m_palettePopup) {
-        if (m_paletteAdapter) {
+    if (m_palettePopup)
+    {
+        if (m_paletteAdapter)
+        {
             m_paletteAdapter->startCloseAnimation();
-        } else {
+        }
+        else
+        {
             m_palettePopup->close();
         }
         return;
@@ -3662,7 +3966,7 @@ void ModernWindow::toggleHuePalette()
     QString titleText = (m_lang == 1) ? QStringLiteral("🌈 全局色调设定") : QStringLiteral("🌈 Global Tint Settings");
     QLabel *title = new QLabel(titleText);
     title->setStyleSheet(QString("font-size: 12px; font-weight: bold; color: %1;")
-        .arg(m_isDark ? "#FFA500" : "#9400D3"));
+                             .arg(m_isDark ? "#FFA500" : "#9400D3"));
     layout->addWidget(title, 0, Qt::AlignHCenter);
 
     // --- 色相选择滑块 ---
@@ -3674,12 +3978,12 @@ void ModernWindow::toggleHuePalette()
     QSlider *slider = new QSlider(Qt::Horizontal);
     slider->setRange(0, 360);
     slider->setValue(m_hueShift);
-    
+
     // 根据全局渲染形状调整滑块外观
     int grooveRadius = m_isRounded ? 5 : 0;
     int handleRadius = m_isRounded ? 6 : 0;
-    int handleWidth  = m_isRounded ? 13 : 10;
-    
+    int handleWidth = m_isRounded ? 13 : 10;
+
     // 炫酷的彩虹渐变滑块背景
     QString sliderStyle = QString(R"(
         QSlider {
@@ -3709,9 +4013,12 @@ void ModernWindow::toggleHuePalette()
             border-radius: %3px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
-    )").arg(grooveRadius).arg(handleWidth).arg(handleRadius);
+    )")
+                              .arg(grooveRadius)
+                              .arg(handleWidth)
+                              .arg(handleRadius);
     slider->setStyleSheet(sliderStyle);
-    
+
     connect(slider, &QSlider::valueChanged, this, &ModernWindow::onHueChanged);
     layout->addWidget(slider);
 
@@ -3752,7 +4059,10 @@ void ModernWindow::toggleHuePalette()
             border-radius: %3px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
-    )").arg(grooveRadius).arg(handleWidth).arg(handleRadius);
+    )")
+                            .arg(grooveRadius)
+                            .arg(handleWidth)
+                            .arg(handleRadius);
     tintSlider->setStyleSheet(tintStyle);
 
     connect(tintSlider, &QSlider::valueChanged, this, &ModernWindow::onTintIntensityChanged);
@@ -3765,10 +4075,13 @@ void ModernWindow::toggleHuePalette()
     m_palettePopup = popup;
 
     // 位置：在按钮下方无缝弹出
-    if (btnPalette) {
+    if (btnPalette)
+    {
         QPoint globalPos = btnPalette->mapToGlobal(QPoint(0, btnPalette->height()));
         popup->move(globalPos.x() - popup->width() / 2 + btnPalette->width() / 2, globalPos.y() + 8);
-    } else {
+    }
+    else
+    {
         popup->move(this->mapToGlobal(QPoint(this->width() / 2 - popup->width() / 2, 100)));
     }
 
@@ -3776,13 +4089,14 @@ void ModernWindow::toggleHuePalette()
     m_paletteAdapter = new PaletteUpdateAdapter(popup, this, popup);
     popup->installEventFilter(m_paletteAdapter);
 
-    connect(popup, &QObject::destroyed, this, [this]() {
+    connect(popup, &QObject::destroyed, this, [this]()
+            {
         m_palettePopup = nullptr;
-        m_paletteAdapter = nullptr;
-    });
-    
+        m_paletteAdapter = nullptr; });
+
     popup->show();
-    if (m_paletteAdapter) {
+    if (m_paletteAdapter)
+    {
         m_paletteAdapter->startOpenAnimation();
     }
 }
@@ -3955,4 +4269,70 @@ bool ModernWindow::nativeEvent(const QByteArray &eventType, void *message, long 
     }
 #endif
     return QMainWindow::nativeEvent(eventType, message, result);
+}
+
+// 🔥 环境检测按钮响应逻辑
+void ModernWindow::onEnvScanClicked()
+{
+    // 如果窗口已经存在，则将其提到最前方，防止重复创建
+    if (m_envScanWindow)
+    {
+        m_envScanWindow->raise();
+        m_envScanWindow->activateWindow();
+        return;
+    }
+
+    // 实例化环境检测窗口，传入当前明暗主题、语言和父窗口
+    m_envScanWindow = new ModernEnvScanWindow(m_isDark, m_lang, this);
+    m_envScanWindow->setAttribute(Qt::WA_DeleteOnClose);
+    m_envScanWindow->show();
+}
+
+// ⚙️ 高级设置按钮被点击
+void ModernWindow::onAdvSettingsClicked()
+{
+    // 🔥 防重复点开
+    if (this->findChild<AdvancedSettingsDialog *>())
+    {
+        return;
+    }
+
+    // m_glassRenderMode 是 enum，我们需要转为 0(Frosted) 或 1(Legacy) 传给子窗体
+    int rm = (m_glassRenderMode == GlassRenderMode::Frosted) ? 0 : 1;
+
+    AdvancedSettingsDialog *dlg = new AdvancedSettingsDialog(this, m_lang, m_isDark,
+                                                             true, m_alpha, rm,
+                                                             m_hueShift, m_tintIntensity, m_storedIsRounded);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+
+    connect(dlg, &QDialog::accepted, this, [this, dlg]()
+            {
+    AppConfig cfg = ConfigManager::loadConfig();
+    cfg.max_retries = dlg->getRetries();
+    cfg.timeout_ms = dlg->getTimeoutMs();
+    cfg.hijack_from_lang = dlg->getHijackFromLang();
+    cfg.hijack_to_lang = dlg->getHijackToLang();
+    cfg.hijack_endpoint = dlg->getHijackEndpoint();
+    cfg.hijack_text_getter = dlg->getHijackTextGetter();
+    cfg.hijack_enable_imgui = dlg->getHijackEnableImGui();
+    cfg.hijack_enable_ugui = dlg->getHijackEnableUGui();
+    cfg.hijack_enable_ui_elements = dlg->getHijackEnableUIElements();
+    cfg.hijack_enable_ngui = dlg->getHijackEnableNGUI();
+    cfg.hijack_enable_text_mesh_pro = dlg->getHijackEnableTextMeshPro();
+    cfg.hijack_enable_text_mesh = dlg->getHijackEnableTextMesh();
+    cfg.hijack_enable_fairy_gui = dlg->getHijackEnableFairyGUI();
+    ConfigManager::saveConfig(cfg);
+    if (m_isServerRunning && m_server) m_server->updateConfig(getUiConfig());
+    LogManager::instance().addLog(m_lang == 1 ? "✅ 高级设置已保存生效" : "✅ Advanced settings applied"); });
+
+    // 🌟 注入灵魂：流光模式下的丝滑出场动画！
+    dlg->setWindowOpacity(0.0); // 初始完全透明
+    dlg->show();                // 非模态展示
+
+    QPropertyAnimation *fadeIn = new QPropertyAnimation(dlg, "windowOpacity");
+    fadeIn->setDuration(300);
+    fadeIn->setStartValue(0.0);
+    fadeIn->setEndValue(this->windowOpacity()); // 完美继承当前流光主窗口的动态透明度
+    fadeIn->setEasingCurve(QEasingCurve::OutCubic);
+    fadeIn->start(QAbstractAnimation::DeleteWhenStopped);
 }

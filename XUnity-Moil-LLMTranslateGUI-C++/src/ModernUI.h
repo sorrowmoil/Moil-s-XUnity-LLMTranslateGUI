@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QWidget>
 #include <QMainWindow>
@@ -1795,7 +1795,7 @@ protected:
                 flowGrad.setColorAt(1.0, shiftHue(QColor(240, 128, 128, 50), m_hueShift));
             }
 
-            // 边缘多层发光 (你之前写好的绝佳逻辑)
+            // 边缘多层发光
             float maxAlpha = m_isDark ? 0.9f : 0.65f;
             for (int i = 0; i < 8; ++i)
             {
@@ -1839,4 +1839,77 @@ private:
     GlassRenderMode m_renderMode = GlassRenderMode::Frosted; // 🎨 渲染模式
     QPropertyAnimation *m_flowAnim;
     QPropertyAnimation *m_pulseAnim;
+};
+
+// ==========================================
+// 🌊 RippleOverlay: 波纹洗刷过渡动画
+// ==========================================
+class RippleOverlay : public QWidget
+{
+    Q_OBJECT
+    Q_PROPERTY(float radius READ radius WRITE setRadius)
+public:
+    QPixmap m_pixmap;
+    QPoint m_center;
+    bool m_isDarkTarget = true;
+
+    RippleOverlay(const QPixmap &pix, const QPoint &center, QWidget *parent = nullptr)
+        : QWidget(parent), m_pixmap(pix), m_center(center)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_TranslucentBackground);
+    }
+
+    float radius() const { return m_radius; }
+    void setRadius(float r) { m_radius = r; update(); }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setRenderHint(QPainter::SmoothPixmapTransform);
+
+        QPainterPath path;
+        path.addRect(rect());
+        path.addEllipse(QPointF(m_center), m_radius, m_radius);
+        p.setClipPath(path);
+
+        p.setCompositionMode(QPainter::CompositionMode_Source);
+        p.drawPixmap(0, 0, m_pixmap);
+        p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+
+        p.setClipping(false);
+
+        if (m_radius > 0)
+        {
+            float waveFront = m_radius + 5.0f;
+            float waveTail = std::max(0.0f, m_radius - 70.0f);
+
+            QRadialGradient grad(m_center, waveFront);
+            float cutStop = m_radius / waveFront;
+            float tailStop = waveTail / waveFront;
+
+            QColor coreColor = m_isDarkTarget ? QColor(255, 120, 0, 255) : QColor(148, 0, 211, 220);
+            QColor midColor = m_isDarkTarget ? QColor(255, 120, 0, 90) : QColor(148, 0, 211, 90);
+
+            grad.setColorAt(1.0, Qt::transparent);
+            grad.setColorAt(qMin(1.0f, cutStop + 0.015f), coreColor);
+            grad.setColorAt(cutStop, coreColor);
+
+            if (tailStop > 0 && tailStop < cutStop)
+            {
+                grad.setColorAt(std::max(tailStop, cutStop - 0.15f), midColor);
+                grad.setColorAt(tailStop, Qt::transparent);
+            }
+            grad.setColorAt(0.0, Qt::transparent);
+
+            p.setBrush(grad);
+            p.setPen(Qt::NoPen);
+            p.drawEllipse(QPointF(m_center), waveFront, waveFront);
+        }
+    }
+
+private:
+    float m_radius = 0;
 };

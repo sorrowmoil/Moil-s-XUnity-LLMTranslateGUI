@@ -3,7 +3,7 @@
 #include <QMainWindow>
 #include <QPointer>
 
-// 🔥 新增：补全 C++ 编译器需要的基础控件定义
+// 🔥 补全 C++ 编译器需要的基础控件定义
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QDoubleSpinBox>
@@ -13,6 +13,8 @@
 #include "TranslationServer.h"
 #include "TokenManager.h"
 #include "ModernUI.h"
+#include "ModernEnvScanWindow.h" // 🔥 引入流光模式环境检测窗口
+#include "AdvancedSettings.h"
 
 class ModernWindow : public QMainWindow
 {
@@ -25,6 +27,7 @@ public:
     TranslationServer *getServer() const { return m_server; }
     AppConfig getUiConfig();
     void loadConfigToUi();
+    void setLogFeedEnabled(bool enabled);
 
     // 🎨 毛玻璃参数访问器（供调色板适配器使用）
     bool getIsDark() const { return m_isDark; }
@@ -80,12 +83,13 @@ private slots:
     void onSelectGlossary();
     void toggleShape();
     void toggleDebugMode();
-    void toggleGlassStyle(); // 🎨 切换毛玻璃渲染模式
-    void onHueChanged(int hueOffset); // 🎨 色相偏移调节
+    void toggleGlassStyle();                    // 🎨 切换毛玻璃渲染模式
+    void onHueChanged(int hueOffset);           // 🎨 色相偏移调节
     void onTintIntensityChanged(int intensity); // 🎨 色彩流光浓度调节
-    void toggleHuePalette(); // 🎨 打开色相调色板
-    
-    
+    void toggleHuePalette();                    // 🎨 打开色相调色板
+    void onEnvScanClicked();                    // 🔥 新增：环境检测按钮槽函数
+    void onAdvSettingsClicked();                // ⚙️ 新增：高级设置槽函数
+
 private:
     void setupApiKeyMemory();
     void handleApiBaseUrlChanged();
@@ -98,6 +102,9 @@ private:
     QString getFriendlyErrorMessage(int code, int lang);
     bool m_isRounded = true; // 状态标记
     QPushButton *btnShape;   // 新按钮
+    bool m_logFeedEnabled = false;
+    QMetaObject::Connection m_logMessageConnection;
+    QMetaObject::Connection m_logsClearedConnection;
 
     void resetAllCursors()
     {
@@ -112,37 +119,54 @@ private:
 
     void updateComboEnv()
     {
-        if (apiAddressCombo) {
+        if (apiAddressCombo)
+        {
             apiAddressCombo->setEnv(m_isDark, m_alpha, m_isRounded);
             apiAddressCombo->setRenderMode(m_glassRenderMode);
             apiAddressCombo->setHueShift(m_hueShift);
             apiAddressCombo->setTintIntensity(m_tintIntensity);
         }
-        if (modelCombo) {
+        if (modelCombo)
+        {
             modelCombo->setEnv(m_isDark, m_alpha, m_isRounded);
             modelCombo->setRenderMode(m_glassRenderMode);
             modelCombo->setHueShift(m_hueShift);
             modelCombo->setTintIntensity(m_tintIntensity);
         }
-        if (glossaryCombo) {
+        if (glossaryCombo)
+        {
             glossaryCombo->setEnv(m_isDark, m_alpha, m_isRounded);
             glossaryCombo->setRenderMode(m_glassRenderMode);
             glossaryCombo->setHueShift(m_hueShift);
             glossaryCombo->setTintIntensity(m_tintIntensity);
         }
-        for (GlassCard *card : m_glassCards) {
-            if (card) {
+        for (GlassCard *card : m_glassCards)
+        {
+            if (card)
+            {
                 card->setRenderMode(m_glassRenderMode);
                 card->setHueShift(m_hueShift);
             }
         }
-        if (m_glossaryDrawer) {
-            static_cast<GlossaryDrawer*>(m_glossaryDrawer.data())->setRenderMode(m_glassRenderMode);
-            static_cast<GlossaryDrawer*>(m_glossaryDrawer.data())->setHueShift(m_hueShift);
-            static_cast<GlossaryDrawer*>(m_glossaryDrawer.data())->setTintIntensity(m_tintIntensity);
+        if (m_glossaryDrawer)
+        {
+            static_cast<GlossaryDrawer *>(m_glossaryDrawer.data())->setRenderMode(m_glassRenderMode);
+            static_cast<GlossaryDrawer *>(m_glossaryDrawer.data())->setHueShift(m_hueShift);
+            static_cast<GlossaryDrawer *>(m_glossaryDrawer.data())->setTintIntensity(m_tintIntensity);
         }
-        if (btnPalette) {
+        if (m_envScanWindow)
+        {
+            m_envScanWindow->setGlassParams(static_cast<int>(m_glassRenderMode), m_hueShift, m_tintIntensity);
+        }
+        if (btnPalette)
+        {
             btnPalette->setVisible(m_glassRenderMode == GlassRenderMode::Frosted);
+        }
+
+        if (auto *advDlg = this->findChild<AdvancedSettingsDialog *>())
+        {
+            int rm = (m_glassRenderMode == GlassRenderMode::Frosted) ? 0 : 1;
+            advDlg->updateGlassEnv(m_isDark, m_alpha, m_storedIsRounded, rm, m_hueShift, m_tintIntensity);
         }
     }
 
@@ -150,22 +174,22 @@ private:
 
     // 核心对象
     TranslationServer *m_server;
-    TokenManager *m_tokenManager;
+
 
     // UI 状态
     QPoint m_dragPos;
     bool m_isDragging = false; // 防误触标志
     int m_alpha;
-    int m_hueShift = 0; // 🎨 全局色相偏移量
+    int m_hueShift = 0;        // 🎨 全局色相偏移量
     int m_tintIntensity = 100; // 🎨 全局色彩流光浓度 (0~200)
     int m_lang;
     bool m_isDark;
     bool m_isServerRunning;
     int m_storedModernOpacity = 210;
     bool m_storedIsRounded = true;
-    bool m_isDebugMode = false; // 测速模式状态
-    bool m_isHandleRichText = false; // 文本处理模式状态
-    bool m_isExtractNewline = true; // ↩️ 提取换行模式状态
+    bool m_isDebugMode = false;                                   // 测速模式状态
+    bool m_isHandleRichText = false;                              // 文本处理模式状态
+    bool m_isExtractNewline = true;                               // ↩️ 提取换行模式状态
     GlassRenderMode m_glassRenderMode = GlassRenderMode::Frosted; // 🎨 毛玻璃渲染模式
 
     int m_resizeEdge = 0;
@@ -176,19 +200,22 @@ private:
     void updateCursorShape(const QPoint &pos);
 
     // UI 组件指针
-    QPointer<QWidget> m_glossaryDrawer; // 悬浮抽屉
-    QPointer<QWidget> m_palettePopup;   // 色相调色板
-    class PaletteUpdateAdapter* m_paletteAdapter; // 💎 调色板实时同步适配器
+    QPointer<QWidget> m_glossaryDrawer;            // 悬浮抽屉
+    QPointer<QWidget> m_palettePopup;              // 色相调色板
+    QPointer<ModernEnvScanWindow> m_envScanWindow; // 🔥 新增：环境检测悬浮窗指针
+    class PaletteUpdateAdapter *m_paletteAdapter;  // 💎 调色板实时同步适配器
     QSlider *m_opacitySlider;
     QPushButton *btnClose, *btnMin;
     QPushButton *btnDebug, *btnLoad, *btnSave, *btnLang, *btnTheme, *btnExport, *btnBack;
-    QPushButton *btnGlassStyle; // 🎨 毛玻璃风格切换按钮
-    QPushButton *btnPalette;    // 🎨 色相调色板按钮
+    QPushButton *btnGlassStyle;  // 🎨 毛玻璃风格切换按钮
+    QPushButton *btnPalette;     // 🎨 色相调色板按钮
+    QPushButton *btnEnvScan;     // 🔥 新增：环境检测按钮
+    QPushButton *btnAdvSettings; // ⚙️ 新增：高级设置按钮
 
     SideGlassCombo *apiAddressCombo, *modelCombo, *glossaryCombo;
-    
+
     // 🌫️ 毛玻璃效果：跟踪所有GlassCard实例
-    QList<GlassCard*> m_glassCards;
+    QList<GlassCard *> m_glassCards;
     QLineEdit *apiKeyEdit, *portEdit, *prePromptEdit;
     QSpinBox *threadSpin, *contextSpin;
     QDoubleSpinBox *tempSpin;
