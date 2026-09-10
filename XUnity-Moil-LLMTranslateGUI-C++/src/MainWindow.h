@@ -12,6 +12,7 @@
 #include <QCheckBox>
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
+#include <QSlider>
 #include <functional>
 #include "TranslationServer.h" // 翻译核心服务 | Translation core service
 #include <QMenu>
@@ -41,10 +42,13 @@ Q_OBJECT // 启用 Qt 元对象系统（信号/槽）| Enable Qt Meta-Object Sys
     AppConfig getUiConfig();
     // 从配置加载 UI 状态（移动到 public 以便外部调用）
     // Load UI state from config (moved to public for external access)
-    void loadConfigToUi();
+    void loadConfigToUi(bool emitToggleLogs = true);
+    void setLogFeedEnabled(bool enabled);
 
     // 切换到流光模式（内部触发）| Switch to Modern Mode (internal trigger)
     void switchToModernMode();
+
+    int getOpacity() const { return m_opacity; }
 
 protected:
     // 重写关闭事件 | Override close event
@@ -85,9 +89,13 @@ private slots:
     void onOpenAutoTranslations();
     void onGlossaryChanged();
 
-    // HUD 模式切换 | HUD mode switching
-    void switchToHud();
-    void restoreFromHud();
+    // HUD 模式切换 | HUD mode switching (temporarily disabled)
+    // void switchToHud();
+    // void restoreFromHud();
+
+    // 全局透明度控制 | Global opacity control
+    void onOpacityChange(int val);
+    void toggleOpacityPanel();
 
     // 服务器状态监听 | Server status listening
     void onServerWorkStarted();
@@ -98,6 +106,7 @@ private slots:
 
     // 🌟 新增：术语表编辑器专用槽函数 | Glossary Editor Slots
     void openGlossaryEditor();
+    void openEnvScanWindow();
     void saveGlossaryEditor();
     void onApiComboContextMenu(const QPoint &pos);
 
@@ -132,6 +141,9 @@ private:
     bool m_isServerRunning = false; // 服务器运行状态 | Server running status
     bool m_apiKeyMemoryEnabled = false;
     QString m_lastApiBaseUrl;
+    bool m_logFeedEnabled = false;
+    QMetaObject::Connection m_logMessageConnection;
+    QMetaObject::Connection m_logsClearedConnection;
 
     // 获取友好的错误消息 | Get friendly error message
     QString getFriendlyErrorMessage(int code, int lang);
@@ -181,6 +193,7 @@ private:
     QPushButton *clearCtxBtn;     // 清除上下文 | Clear Context
     QPushButton *modernBtn;       // 切换到流光模式 | Switch to Modern Mode
     QPushButton *editGlossaryBtn; // 🌟 新增：编辑术语表按钮 | Edit Glossary Button
+    QPushButton *envScanBtn;      // 🌟 新增：环境扫描按钮 | Environment Scan Button
 
     // 分组框 | Group Boxes
     QGroupBox *cfgGroup; // 配置组 | Config Group
@@ -213,6 +226,13 @@ private:
     // 核心逻辑对象 | Core Logic Objects
     TranslationServer *server;        // 翻译服务实例 | Translation Service Instance
     QPropertyAnimation *fadeAnim;     // 淡入淡出动画 | Fade In/Out Animation
-    TokenManager *m_tokenManager;     // Token 管理器 | Token Manager
     HudWindow *m_hudWindow = nullptr; // 悬浮窗实例 | HUD Window Instance
+
+    // 全局透明度控制 (可折叠面板) | Global opacity control (collapsible panel)
+    QPushButton *m_opacityToggleBtn = nullptr;
+    QWidget *m_opacityPanel = nullptr;
+    QSlider *m_opacitySlider = nullptr;
+    QLabel *m_opacityLabel = nullptr;
+    bool m_opacityPanelVisible = false;
+    int m_opacity = 210;
 };
