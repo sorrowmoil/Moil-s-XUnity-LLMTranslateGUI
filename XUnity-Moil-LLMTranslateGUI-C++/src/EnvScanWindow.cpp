@@ -271,6 +271,7 @@ void EnvScanWindow::setupUI()
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setFrameShape(QFrame::NoFrame);
     m_scrollArea->setObjectName("mainScrollArea");
+    m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     m_scrollWidget = new QWidget(m_scrollArea);
     m_scrollWidget->setObjectName("mainScrollWidget");
@@ -693,8 +694,12 @@ void EnvScanWindow::performScan()
     int pluginSuccess = 0;
     int totalIssues = 0;
 
-    // 1. 游戏路径
-    updateRowState(rowGamePath, "success", gameDir.dirName(), m_lang == 1 ? "说明" : "Guide", "secondary");
+    // 🎯 修复经典模式拉伸：设定行状态文本的最大安全宽度（约 140px）
+    QFontMetrics fmRow(rowGamePath.statusLabel->font());
+    QString elidedFolderName = fmRow.elidedText(gameDir.dirName(), Qt::ElideRight, 140);
+
+    // 1. 游戏路径 (应用截断)
+    updateRowState(rowGamePath, "success", elidedFolderName, m_lang == 1 ? "说明" : "Guide", "secondary");
     rowGamePath.actionBtn->disconnect();
     connect(rowGamePath.actionBtn, &QPushButton::clicked, this, [this](){ showFloatingTooltip(rowGamePath.actionBtn, m_tipGamePath); });
     basicSuccess++;
@@ -761,11 +766,12 @@ void EnvScanWindow::performScan()
 
     if (!targetFileForVersion.isEmpty()) {
         QString version = getUnityPlayerVersion(targetFileForVersion);
+        QString elidedVersion = fmRow.elidedText(version, Qt::ElideRight, 140);
         if (version != (m_lang == 1 ? "未知版本" : "Unknown Version")) {
-            updateRowState(rowUnityVersion, "success", version, m_lang == 1 ? "说明" : "Guide", "secondary");
+            updateRowState(rowUnityVersion, "success", elidedVersion, m_lang == 1 ? "说明" : "Guide", "secondary");
             basicSuccess++;
         } else {
-            updateRowState(rowUnityVersion, "warning", version, m_lang == 1 ? "说明" : "Guide", "secondary");
+            updateRowState(rowUnityVersion, "warning", elidedVersion, m_lang == 1 ? "说明" : "Guide", "secondary");
             totalIssues++;
         }
     } else {
@@ -827,7 +833,10 @@ void EnvScanWindow::performScan()
     connect(rowGlossary.actionBtn, &QPushButton::clicked, this, [this](){ showFloatingTooltip(rowGlossary.actionBtn, m_tipGlossary); });
 
     if (!foundFonts.isEmpty()) {
-        updateRowState(rowFont, "success", foundFonts.size() > 1 ? foundFonts[0] + " | ..." : foundFonts[0], m_lang == 1 ? "说明" : "Guide", "secondary");
+        QString rawFontText = foundFonts.size() > 1 ? foundFonts[0] + " | ..." : foundFonts[0];
+        QString elidedFontText = fmRow.elidedText(rawFontText, Qt::ElideRight, 140);
+        
+        updateRowState(rowFont, "success", elidedFontText, m_lang == 1 ? "说明" : "Guide", "secondary");
         
         QString listHtml; for (const QString &f : foundFonts) listHtml += "<br>• " + f;
         QString combinedTip = m_tipFont + (m_lang == 1 ? "<br><br><b>已检测到字体:</b>" : "<br><br><b>Found:</b>") + listHtml;
@@ -848,7 +857,10 @@ void EnvScanWindow::performScan()
     lblPluginGroupCount->setText(QString("%1 / 3 %2").arg(pluginSuccess).arg(strLangOk));
 
     // 6. 更新总体状态摘要
-    lblSummaryPath->setText(QDir::toNativeSeparators(m_gameFolderPath));
+    // 🎯 修复经典模式拉伸：中置截断绝对路径
+    QString fullPath = QDir::toNativeSeparators(m_gameFolderPath);
+    QFontMetrics fmSum(lblSummaryPath->font());
+    lblSummaryPath->setText(fmSum.elidedText(fullPath, Qt::ElideMiddle, 240));
     
     if (totalIssues == 0) {
         lblSummaryIcon->setText("✓");
