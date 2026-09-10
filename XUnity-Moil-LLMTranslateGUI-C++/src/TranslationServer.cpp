@@ -13,14 +13,230 @@
 #include <QNetworkRequest>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QSet>
 #include <regex>
 #include <chrono>
 #include <thread>
 #include <algorithm>
 #include <memory> // 🔥 引入现代C++智能指针
+#include <cmath>
+#include <initializer_list>
+#include <limits>
 
 using json = nlohmann::json;
+
+namespace
+{
+    struct ParsedTokenUsage
+    {
+        bool available = false;
+        long long prompt = 0;
+        long long completion = 0;
+        long long total = 0;
+    };
+
+    long long safeTokenSum(
+        long long first,
+        long long second)
+    {
+        first = std::max(0LL, first);
+        second = std::max(0LL, second);
+
+        const long long maximum =
+            std::numeric_limits<long long>::max();
+
+        if (first > maximum - second)
+            return maximum;
+
+        return first + second;
+    }
+
+    long long jsonTokenCount(
+        const json &value)
+    {
+        try
+        {
+            if (value.is_number_unsigned())
+            {
+                const auto number =
+                    value.get<unsigned long long>();
+
+                const auto maximum =
+                    static_cast<unsigned long long>(
+                        std::numeric_limits<long long>::max());
+
+                return static_cast<long long>(
+                    std::min(number, maximum));
+            }
+
+            if (value.is_number_integer())
+            {
+                return std::max(
+                    0LL,
+                    value.get<long long>());
+            }
+
+            if (value.is_number_float())
+            {
+                const double number =
+                    value.get<double>();
+
+                if (!std::isfinite(number) ||
+                    number < 0.0)
+                {
+                    return -1;
+                }
+
+                const double maximum =
+                    static_cast<double>(
+                        std::numeric_limits<long long>::max());
+
+                return static_cast<long long>(
+                    std::min(number, maximum));
+            }
+
+            // 少数 OpenAI 兼容端点会把数字放在字符串中。
+            if (value.is_string())
+            {
+                bool ok = false;
+
+                const long long number =
+                    QString::fromStdString(
+                        value.get<std::string>())
+                        .trimmed()
+                        .toLongLong(&ok);
+
+                return ok
+                           ? std::max(0LL, number)
+                           : -1;
+            }
+        }
+        catch (...)
+        {
+        }
+
+        return -1;
+    }
+
+    long long findTokenCount(
+        const json &object,
+        std::initializer_list<const char *> keys)
+    {
+        if (!object.is_object())
+            return -1;
+
+        for (const char *key : keys)
+        {
+            if (!object.contains(key))
+                continue;
+
+            const long long value =
+                jsonTokenCount(object.at(key));
+
+            if (value >= 0)
+                return value;
+        }
+
+        return -1;
+    }
+
+    ParsedTokenUsage parseTokenUsage(
+        const json &response)
+    {
+        ParsedTokenUsage result;
+
+        const json *usage = nullptr;
+
+        // OpenAI、DeepSeek、OpenRouter 等兼容格式。
+        if (response.contains("usage") &&
+            response.at("usage").is_object())
+        {
+            usage = &response.at("usage");
+        }
+        // Gemini 原生格式。
+        else if (response.contains("usageMetadata") &&
+                 response.at("usageMetadata").is_object())
+        {
+            usage = &response.at("usageMetadata");
+        }
+        // Ollama 部分接口直接把统计字段放在根对象。
+        else if (response.contains("prompt_eval_count") ||
+                 response.contains("eval_count"))
+        {
+            usage = &response;
+        }
+
+        if (!usage)
+            return result;
+
+        long long prompt =
+            findTokenCount(
+                *usage,
+                {"prompt_tokens",
+                 "input_tokens",
+                 "promptTokenCount",
+                 "promptTokens",
+                 "prompt_eval_count"});
+
+        long long completion =
+            findTokenCount(
+                *usage,
+                {"completion_tokens",
+                 "output_tokens",
+                 "candidatesTokenCount",
+                 "completionTokens",
+                 "eval_count"});
+
+        long long total =
+            findTokenCount(
+                *usage,
+                {"total_tokens",
+                 "totalTokenCount",
+                 "totalTokens"});
+
+        const bool hasAnyValue =
+            prompt >= 0 ||
+            completion >= 0 ||
+            total >= 0;
+
+        if (!hasAnyValue)
+            return result;
+
+        // 供应商只返回 total 和其中一项时，推导缺失项。
+        if (prompt < 0 &&
+            completion >= 0 &&
+            total >= completion)
+        {
+            prompt = total - completion;
+        }
+
+        if (completion < 0 &&
+            prompt >= 0 &&
+            total >= prompt)
+        {
+            completion = total - prompt;
+        }
+
+        prompt = std::max(0LL, prompt);
+        completion = std::max(0LL, completion);
+
+        const long long componentTotal =
+            safeTokenSum(prompt, completion);
+
+        if (total < 0)
+            total = componentTotal;
+        else
+            total = std::max(total, componentTotal);
+
+        result.available = true;
+        result.prompt = prompt;
+        result.completion = completion;
+        result.total = total;
+
+        return result;
+    }
+}
 
 // ==========================================
 // 日志与常量 (HTML Optimized)
@@ -125,7 +341,7 @@ QString TranslationServer::unityToHtml(const QString &text)
     // 4. 🎨 安全还原：把保护好的标记恢复为真正的 HTML
     t.replace("[[[LF]]]", "<span style='color:#FF5722; font-weight:bold;'>[LF]</span><br>");
     t.replace("[[[BR]]]", "<span style='color:#FF5722; font-weight:bold;'>[BR]</span><br>");
-    
+
     static const QRegularExpression colorStartRes(R"(\[\[\[C:(.*?)\]\]\])");
     t.replace(colorStartRes, R"(<span style="color:\1;">)");
     t.replace("[[[/C]]]", "</span>");
@@ -141,14 +357,16 @@ QString TranslationServer::unityToHtml(const QString &text)
 }
 
 // 彩虹生成器预留实现
-QString TranslationServer::makeRainbow(const QString &text) {
+QString TranslationServer::makeRainbow(const QString &text)
+{
     return text;
 }
 
 // ==========================================
 // 🚨 终极标签克隆手术 (完全解封并强化) 🚨
 // ==========================================
-QString TranslationServer::repairTranslationResult(const QString& original, const QString& translated) {
+QString TranslationServer::repairTranslationResult(const QString &original, const QString &translated)
+{
     QString result = translated;
 
     // 1. 统一处理：将 LLM 发明的方括号标签全部转化为尖括号 (例如 [b] -> <b>)
@@ -156,13 +374,15 @@ QString TranslationServer::repairTranslationResult(const QString& original, cons
 
     // 2. 🚨 白名单独裁：物理消灭不存在的标签 🚨
     QStringList checkTags = {"b", "i", "u", "size", "color"};
-    for (const QString& tag : checkTags) {
-        if (!original.contains("<" + tag, Qt::CaseInsensitive)) {
+    for (const QString &tag : checkTags)
+    {
+        if (!original.contains("<" + tag, Qt::CaseInsensitive))
+        {
             QRegularExpression killExp(R"(</?)" + tag + R"((?:>|\s[^>]*>|\\?=[^>]*>))", QRegularExpression::CaseInsensitiveOption);
             result.remove(killExp);
         }
     }
-    
+
     // 移除模型脑补的 XML 格式占位符和自闭合垃圾
     result.remove(QRegularExpression(R"(</?T_\d+>)", QRegularExpression::CaseInsensitiveOption));
     result.remove(QRegularExpression(R"(<[^>]+/>)"));
@@ -171,18 +391,21 @@ QString TranslationServer::repairTranslationResult(const QString& original, cons
     // 3. 🚨 结构化逐行克隆手术 (Line-by-Line Clone Shell)
     // 专门针对 Unity 中频繁出现的用 <br> 或 /n 分割的名牌+对话句式修复
     // ==========================================================
-    QRegularExpression newlineRegex(R"(\[LF\]|\\n|\r?\n|<br\s*/?>)", QRegularExpression::CaseInsensitiveOption); 
+    QRegularExpression newlineRegex(R"(\[LF\]|\\n|\r?\n|<br\s*/?>)", QRegularExpression::CaseInsensitiveOption);
     QStringList orgLines = original.split(newlineRegex);
     QStringList transLines = result.split(newlineRegex);
 
-    if (orgLines.size() == transLines.size() && orgLines.size() > 0) {
+    if (orgLines.size() == transLines.size() && orgLines.size() > 0)
+    {
         QString finalResult;
-        
+
         QRegularExpressionMatchIterator matchIt = newlineRegex.globalMatch(original);
         QStringList separators;
-        while (matchIt.hasNext()) separators.append(matchIt.next().captured(0));
+        while (matchIt.hasNext())
+            separators.append(matchIt.next().captured(0));
 
-        for (int i = 0; i < orgLines.size(); ++i) {
+        for (int i = 0; i < orgLines.size(); ++i)
+        {
             QString oLine = orgLines[i];
             QString tLine = transLines[i];
 
@@ -199,11 +422,13 @@ QString TranslationServer::repairTranslationResult(const QString& original, cons
             tLine.remove(QRegularExpression(R"(^(?:<[a-zA-Z/][^>]*>|\s)+)"));
             tLine.remove(QRegularExpression(R"((?:<[a-zA-Z/][^>]*>|\s)+$)"));
 
-            if(tLine.isEmpty() && !oLine.isEmpty()) tLine = oLine;
+            if (tLine.isEmpty() && !oLine.isEmpty())
+                tLine = oLine;
 
             finalResult += prefix + tLine + suffix;
 
-            if (i < separators.size()) {
+            if (i < separators.size())
+            {
                 finalResult += separators[i];
             }
         }
@@ -284,32 +509,103 @@ void TranslationServer::startServer()
         m_cleanupThread = nullptr;
     }
 
-    m_running = true;
-    m_stopRequested = false;
-    m_serverThread = new std::thread(&TranslationServer::runServerLoop, this);
-
     int lang = 1;
     int port = 6800;
     int threads = 64;
     QString glossaryPath = "";
+    bool enableBatch = false;
+    bool handleRichText = false;
+    bool extractNewline = true;
+    QString hijackFromLang = "ja";
+    QString hijackToLang = "zh";
+    QString hijackEndpoint = "GoogleTranslate";
+    bool hijackTextGetter = false;
+    bool enableImGui = false;
+    bool enableUGui = true;
+    bool enableUIElements = true;
+    bool enableNGUI = true;
+    bool enableTextMeshPro = true;
+    bool enableTextMesh = false;
+    bool enableFairyGUI = true;
 
     {
         std::lock_guard<std::mutex> lock(m_configMutex);
+
         lang = m_config.language;
         port = m_config.port;
         threads = std::clamp(m_config.max_threads, 64, 256);
         glossaryPath = m_config.glossary_path;
+        enableBatch = m_config.enable_batch;
+        handleRichText = m_config.handle_rich_text;
+        extractNewline = m_config.extract_newline;
+
+        hijackFromLang = m_config.hijack_from_lang;
+        hijackToLang = m_config.hijack_to_lang;
+        hijackEndpoint = m_config.hijack_endpoint;
+        hijackTextGetter = m_config.hijack_text_getter;
+
+        enableImGui = m_config.hijack_enable_imgui;
+        enableUGui = m_config.hijack_enable_ugui;
+        enableUIElements = m_config.hijack_enable_ui_elements;
+        enableNGUI = m_config.hijack_enable_ngui;
+        enableTextMeshPro = m_config.hijack_enable_text_mesh_pro;
+        enableTextMesh = m_config.hijack_enable_text_mesh;
+        enableFairyGUI = m_config.hijack_enable_fairy_gui;
     }
+
+    // Batch mode prerequisite guard:
+    // A valid glossary .txt path must exist so we can backtrack and hijack the target ini.
+    if (enableBatch)
+    {
+        QString glossaryPathTrimmed = glossaryPath.trimmed();
+        QFileInfo glossaryInfo(glossaryPathTrimmed);
+
+        if (glossaryPathTrimmed.isEmpty() || !glossaryInfo.exists() || !glossaryInfo.isFile())
+        {
+            emit logMessage((lang == 0)
+                                ? "❌ Batch Mode blocked: glossary path is missing or invalid."
+                                : "❌ 打包模式启动失败：术语表路径为空或无效。");
+            return;
+        }
+
+        QString iniPath = XuaConfigHijacker::deduceIniPath(glossaryPathTrimmed);
+        if (iniPath.isEmpty())
+        {
+            emit logMessage((lang == 0)
+                                ? "❌ Batch Mode blocked: unable to deduce target.ini from glossary path."
+                                : "❌ 打包模式启动失败：无法根据术语表路径反推出目标.ini。\n请确认术语表路径层级正确。");
+            return;
+        }
+
+        glossaryPath = glossaryPathTrimmed;
+    }
+
+    m_running = true;
+    m_stopRequested = false;
+    m_serverThread = new std::thread(&TranslationServer::runServerLoop, this);
 
     emit logMessage(QString(SV_LOG_START[lang]).arg(port).arg(threads));
 
-    if (m_config.enable_batch && !glossaryPath.isEmpty())
+    if (enableBatch && !glossaryPath.isEmpty())
     {
-        QString hijackedFile = XuaConfigHijacker::autoDetectAndHijack(glossaryPath, port, threads, m_config.handle_rich_text, m_config.extract_newline);
+
+        QString hijackedFile = XuaConfigHijacker::autoDetectAndHijack(glossaryPath, port, threads, handleRichText, extractNewline,
+                                                                      hijackFromLang, hijackToLang, hijackEndpoint, hijackTextGetter,
+                                                                      enableImGui, enableUGui, enableUIElements,
+                                                                      enableNGUI, enableTextMeshPro, enableTextMesh, enableFairyGUI);
+
         if (!hijackedFile.isEmpty())
         {
-            QString logMsg = (lang == 0) ? QString("🔗 <font color='#2196F3'>Batch Mode ON</font>: Game config injected (%1)").arg(hijackedFile)
-                                         : QString("🔗 <font color='#2196F3'>打包模式已开启</font>：游戏配置已智能接管 (%1)").arg(hijackedFile);
+            QString logMsg = (lang == 0)
+                                 ? QString(
+                                       "🔗 <font color='#2196F3'>Batch Mode ON</font>: "
+                                       "Game config injected (%1)")
+                                       .arg(hijackedFile)
+                                 : QString(
+                                       "🔗 <font color='#2196F3'>打包模式已开启</font>："
+                                       "游戏配置已智能接管 (%1)")
+                                       .arg(hijackedFile);
+
             emit logMessage(logMsg);
         }
     }
@@ -406,7 +702,7 @@ void TranslationServer::runServerLoop()
     // ==========================================
     // Custom Handler
     // ==========================================
-    auto customHandler =   [this](const httplib::Request &req, httplib::Response &res)
+    auto customHandler = [this](const httplib::Request &req, httplib::Response &res)
     {
         if (m_stopRequested.load(std::memory_order_relaxed))
         {
@@ -459,7 +755,7 @@ void TranslationServer::runServerLoop()
         }
 
         QString result = performTranslation(text, QString::fromStdString(req.remote_addr));
-        
+
         // 🛑 如果处理期间点下了停止，阻止最终的输出！
         if (m_stopRequested.load(std::memory_order_relaxed))
         {
@@ -496,7 +792,7 @@ void TranslationServer::runServerLoop()
     // ==========================================
     // Google Handler
     // ==========================================
-    auto googleHandler =  [this](const httplib::Request &req, httplib::Response &res)
+    auto googleHandler = [this](const httplib::Request &req, httplib::Response &res)
     {
         if (m_stopRequested.load(std::memory_order_relaxed))
         {
@@ -660,25 +956,32 @@ QString TranslationServer::performTranslation(const QString &text, const QString
         return text;
 
     QString resultText = "";
-    int retryCount = 0;
-    const int MAX_RETRY_COUNT = 5;
+    int retryCount = 0; // 代表 "已执行的重试次数"
     const int RETRY_DELAY_MS = 1000;
-    int langIdx = 1;
-    {
-        std::lock_guard<std::mutex> lock(m_configMutex);
-        langIdx = m_config.language;
-    }
 
-    while (retryCount < MAX_RETRY_COUNT)
+    while (true)
     {
+        int maxRetries = 5;
+        int langIdx = 1;
+        {
+            // 🌟 实时心跳：每次循环开局，抓取最新鲜的配置！
+            std::lock_guard<std::mutex> lock(m_configMutex);
+            maxRetries = m_config.max_retries;
+            langIdx = m_config.language;
+        }
+
         if (m_stopRequested)
         {
             emit logMessage(SV_ABORTED[langIdx]);
             return "";
         }
+
+        // 如果是重试，打印直观的 (1/10), (2/10) 进度日志
         if (retryCount > 0)
         {
-            emit logMessage(QString(SV_RETRY_ATTEMPT[langIdx]).arg(retryCount + 1).arg(MAX_RETRY_COUNT));
+            emit logMessage(QString(SV_RETRY_ATTEMPT[langIdx]).arg(retryCount).arg(maxRetries));
+
+            // 挂起等待时依然保持对停止指令的嗅探
             for (int i = 0; i < RETRY_DELAY_MS / 100; ++i)
             {
                 if (m_stopRequested)
@@ -686,9 +989,14 @@ QString TranslationServer::performTranslation(const QString &text, const QString
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
         }
+
+        // 🚀 发起单次网络请求 (内部已经实现了超时时间的动态获取)
         QString attemptResult = performSingleTranslationAttempt(text, clientIP);
+
         if (m_stopRequested)
             return "";
+
+        // 如果成功了，直接跳出并返回
         if (isValidTranslationResult(attemptResult))
         {
             if (retryCount > 0)
@@ -696,11 +1004,25 @@ QString TranslationServer::performTranslation(const QString &text, const QString
             resultText = attemptResult;
             break;
         }
+
+        // ❌ 当前尝试失败，重试计数+1
         retryCount++;
-        if (retryCount >= MAX_RETRY_COUNT)
+
+        // 🌟 极限反杀：再次抓取最新配置！
+        // 如果它在第 5 次失败，准备退出时，你刚巧在高级设置里把次数改成了 10，
+        // 这里的 maxRetries 就会瞬间膨胀为 10，成功“续命”继续下一轮重试！
+        {
+            std::lock_guard<std::mutex> lock(m_configMutex);
+            maxRetries = m_config.max_retries;
+            langIdx = m_config.language;
+        }
+
+        // 如果已重试次数 > 允许的最大重试次数，判定为彻底失败
+        if (retryCount > maxRetries)
         {
             emit logMessage(SV_RETRY_FAILED[langIdx]);
             resultText = "";
+            break;
         }
     }
     return resultText;
@@ -728,10 +1050,11 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
     QString preText = text;
     bool hasRotate = false;
     QString rotateOpenTag = "";
-    
+
     QRegularExpression rotFinder(R"(<rotate\s*\\?=\s*[^>]+>|<rotate>)", QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatch rotMatch = rotFinder.match(preText);
-    if(rotMatch.hasMatch()) {
+    if (rotMatch.hasMatch())
+    {
         hasRotate = true;
         rotateOpenTag = rotMatch.captured(0);
     }
@@ -837,6 +1160,8 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", ("Bearer " + apiKey).toUtf8());
 
+    request.setTransferTimeout(cfg.timeout_ms);
+
     std::unique_ptr<QNetworkReply> reply(threadNam->post(request, QByteArray::fromStdString(payload.dump())));
 
     // ==========================================
@@ -858,7 +1183,7 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
             break;
         }
 
-        if (timer.elapsed() > 40000)
+        if (timer.elapsed() > cfg.timeout_ms + 5000)
         {
             isTimeout = true;
             reply->abort();
@@ -875,7 +1200,7 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
     if (isTimeout)
     {
         emit logMessage("<font color='#F44336'>❌ Request Timeout</font>");
-        return ""; 
+        return "";
     }
 
     // --- ⬇️ 解析流程 ⬇️ ---
@@ -886,12 +1211,20 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
         try
         {
             json response = json::parse(responseBytes.toStdString());
-            if (response.contains("usage"))
+            
+            const ParsedTokenUsage tokenUsage =
+                parseTokenUsage(response);
+
+            if (tokenUsage.available)
             {
-                int p = response["usage"].value("prompt_tokens", 0);
-                int c = response["usage"].value("completion_tokens", 0);
-                if (p > 0 || c > 0)
-                    emit tokenUsageReceived(p, c);
+                emit tokenUsageReceived(
+                    tokenUsage.prompt,
+                    tokenUsage.completion,
+                    tokenUsage.total);
+            }
+            else
+            {
+                emit tokenUsageUnavailable();
             }
 
             if (response.contains("choices") && !response["choices"].empty())
@@ -950,7 +1283,7 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
 
                 resultText.remove("<tl>", Qt::CaseInsensitive);
                 resultText.remove("</tl>", Qt::CaseInsensitive);
-                
+
                 resultText = thawEscapesLocal(resultText, escapeCtx);
                 if (cfg.enable_glossary)
                     resultText = RegexManager::instance().processPost(resultText);
@@ -982,16 +1315,21 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
                 // 4. 🔄 Unity 竖排渲染标签重建 (Rotate Reconstruction)
                 // 专门为翻译后的文本，逐个真实字符套回原本的旋转标签！
                 // ==========================================
-                if (hasRotate && !resultText.isEmpty()) {
+                if (hasRotate && !resultText.isEmpty())
+                {
                     QString rewrapped;
                     // 精准匹配：忽略已存在的 HTML 标签、忽略空白和换行，只给实体字符穿戴！
                     QRegularExpression tokenMatcher(R"(<[^>]+>|\[LF\]|\r?\n|\s+|.)", QRegularExpression::DotMatchesEverythingOption);
                     QRegularExpressionMatchIterator rit = tokenMatcher.globalMatch(resultText);
-                    while (rit.hasNext()) {
+                    while (rit.hasNext())
+                    {
                         QString token = rit.next().captured(0);
-                        if (token.startsWith("<") || token.startsWith("[LF]") || token.trimmed().isEmpty()) {
+                        if (token.startsWith("<") || token.startsWith("[LF]") || token.trimmed().isEmpty())
+                        {
                             rewrapped += token; // 保持标签和空格原封不动
-                        } else {
+                        }
+                        else
+                        {
                             rewrapped += rotateOpenTag + token + "</rotate>"; // 重建竖排渲染！
                         }
                     }
@@ -1028,7 +1366,7 @@ QString TranslationServer::performSingleTranslationAttempt(const QString &text, 
         emit logMessage("<font color='#F44336'>❌ Network Error: " + reply->errorString() + "</font>");
         resultText = "";
     }
-    
+
     return resultText;
 }
 
