@@ -74,6 +74,9 @@ add_executable(XUnityTranslatorCPP
     src/ModernWindow.h src/ModernWindow.cpp
     src/LogManager.h   src/ModernUI.h
     src/XuaConfigHijacker.h
+    src/EnvScanWindow.h src/EnvScanWindow.cpp
+    src/ModernEnvScanWindow.h src/ModernEnvScanWindow.cpp
+    src/AdvancedSettings.h src/AdvancedSettings.cpp
     logo.rc
 )
 
@@ -95,6 +98,7 @@ target_link_libraries(XUnityTranslatorCPP PRIVATE
     Qt6::Widgets
     Qt6::Network
     Qt6::Core
+    version
 )
 
 # Link against Windows DWM library for glass effect
